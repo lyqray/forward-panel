@@ -6,8 +6,8 @@ export LANG=en_US.UTF-8
 export LC_ALL=C
 
 # 全局下载地址配置
-DOCKER_COMPOSEV4_URL="https://github.com/bqlpfy/forward-panel/raw/refs/heads/main/docker-compose-v4.yml"
-DOCKER_COMPOSEV6_URL="https://github.com/bqlpfy/forward-panel/raw/refs/heads/main/docker-compose-v6.yml"
+DOCKER_COMPOSEV4_URL="https://github.com/lyqray/forward-panel/raw/refs/heads/my/docker-compose-v4.yml"
+DOCKER_COMPOSEV6_URL="https://github.com/lyqray/forward-panel/raw/refs/heads/my/docker-compose-v6.yml"
 GOST_SQL_URL="https://github.com/bqlpfy/forward-panel/raw/refs/heads/main/gost.sql"
 
 # 根据IPv6支持情况选择docker-compose URL
