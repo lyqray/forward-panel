@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 下载地址
-DOWNLOAD_URL="https://github.com/bqlpfy/forward-panel/releases/download/gost/gost"
+DOWNLOAD_URL="https://github.com/lyqray/forward-panel/releases/download/gost/gost"
 INSTALL_DIR="/etc/gost"
 
 # 显示菜单
