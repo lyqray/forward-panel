@@ -83,7 +83,7 @@ public class GostUtil {
         JSONArray services = new JSONArray();
         services.add(name + "_tls");
         data.put("services", services);
-        return WebSocketServer.send_msg(node_id, data, "PauseRemoteService");
+        return WebSocketServer.send_msg(node_id, data, "PauseService");
     }
 
     public static GostDto ResumeRemoteService(Long node_id, String name) {
@@ -91,7 +91,7 @@ public class GostUtil {
         JSONArray services = new JSONArray();
         services.add(name + "_tls");
         data.put("services", services);
-        return WebSocketServer.send_msg(node_id, data, "ResumeRemoteService");
+        return WebSocketServer.send_msg(node_id, data, "ResumeService");
     }
 
     public static GostDto AddChains(Long node_id, String name, String remoteAddr, String protocol) {

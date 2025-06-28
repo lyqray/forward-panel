@@ -9,6 +9,7 @@ import (
 	"github.com/go-gost/core/service"
 	"github.com/go-gost/x/config"
 	parser "github.com/go-gost/x/config/parsing/service"
+	kill "github.com/go-gost/x/internal/util/port"
 	"github.com/go-gost/x/registry"
 )
 
@@ -273,8 +274,10 @@ func pauseServices(req pauseServicesRequest) error {
 			return errors.New(fmt.Sprintf("service %s configuration not found", stp.name))
 		}
 
-		// 暂停服务
-		stp.service.Close()
+		// 强制断开端口的所有连接
+		if serviceConfig.Addr != "" {
+			_ = kill.ForceClosePortConnections(serviceConfig.Addr)
+		}
 
 		// 记录已暂停的服务
 		pausedServices = append(pausedServices, struct {

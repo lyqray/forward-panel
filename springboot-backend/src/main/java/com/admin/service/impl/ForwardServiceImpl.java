@@ -148,7 +148,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("隧道已禁用，无法更新转发");
         }
 
-        // 4. 检查权限和限制（仅当隧道发生变化时）
+        // 4. 检查权限和限制
         UserPermissionResult permissionResult = null;
         if (isTunnelChanged(existForward, forwardUpdateDto)) {
             permissionResult = checkUserPermissions(currentUser, tunnel, forwardUpdateDto.getId());
@@ -156,35 +156,48 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 return R.err(permissionResult.getErrorMessage());
             }
         }
+        
+        // 5. 获取UserTunnel（即使隧道未变化也需要获取，用于构建服务名称）
+        UserTunnel userTunnel = null;
+        if (currentUser.getRoleId() != ADMIN_ROLE_ID) {
+            userTunnel = getUserTunnel(currentUser.getUserId(), tunnel.getId().intValue());
+            if (userTunnel == null) {
+                return R.err("你没有该隧道权限");
+            }
+        } else {
+            // 管理员用户也需要获取UserTunnel（如果存在的话），用于构建正确的服务名称
+            // 通过forward记录获取原始的用户ID
+            userTunnel = getUserTunnel(existForward.getUserId(), tunnel.getId().intValue());
+        }
 
-        // 5. 更新Forward对象
+        // 6. 更新Forward对象
         Forward updatedForward = updateForwardEntity(forwardUpdateDto, existForward, tunnel);
 
-        // 6. 获取所需的节点信息
+        // 7. 获取所需的节点信息
         NodeInfo nodeInfo = getRequiredNodes(tunnel);
         if (nodeInfo.isHasError()) {
             return R.err(nodeInfo.getErrorMessage());
         }
 
-        // 7. 调用Gost服务更新转发
+        // 8. 调用Gost服务更新转发
         R gostResult;
         if (isTunnelChanged(existForward, forwardUpdateDto)) {
             // 隧道变化时：先删除原配置，再创建新配置
             gostResult = updateGostServicesWithTunnelChange(existForward, updatedForward, tunnel,
                                         permissionResult != null ? permissionResult.getLimiter() : null,
-                                        nodeInfo, permissionResult != null ? permissionResult.getUserTunnel() : null);
+                                        nodeInfo, userTunnel);
         } else {
             // 隧道未变化时：直接更新配置
             gostResult = updateGostServices(updatedForward, tunnel, 
                                         permissionResult != null ? permissionResult.getLimiter() : null,
-                                        nodeInfo, permissionResult != null ? permissionResult.getUserTunnel() : null);
+                                        nodeInfo, userTunnel);
         }
         
         if (gostResult.getCode() != 0) {
             return gostResult;
         }
         updatedForward.setStatus(1);
-        // 8. 保存更新
+        // 9. 保存更新
         boolean result = this.updateById(updatedForward);
         return result ? R.ok("端口转发更新成功") : R.err("端口转发更新失败");
     }
@@ -213,6 +226,9 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             if (userTunnel == null) {
                 return R.err("你没有该隧道权限");
             }
+        } else {
+            // 管理员删除用户记录时，需要获取对应的UserTunnel用于构建正确的服务名称
+            userTunnel = getUserTunnel(forward.getUserId(), tunnel.getId().intValue());
         }
 
         // 5. 获取所需的节点信息
@@ -317,14 +333,20 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
                 return R.err("你没有该隧道权限");
             }
         }
+        
+        // 6. 确保获取UserTunnel用于构建服务名称（包括管理员用户）
+        if (userTunnel == null) {
+            // 通过forward记录获取原始的用户ID来查找UserTunnel
+            userTunnel = getUserTunnel(forward.getUserId(), tunnel.getId().intValue());
+        }
 
-        // 6. 获取所需的节点信息
+        // 7. 获取所需的节点信息
         NodeInfo nodeInfo = getRequiredNodes(tunnel);
         if (nodeInfo.isHasError()) {
             return R.err(nodeInfo.getErrorMessage());
         }
 
-        // 7. 调用Gost服务
+        // 8. 调用Gost服务
         String serviceName = buildServiceName(forward.getId(), forward.getUserId(), forward.getTunnelId(), userTunnel);
         GostDto gostResult;
         
@@ -354,7 +376,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err(operation + "服务失败：" + gostResult.getMsg());
         }
 
-        // 8. 更新转发状态
+        // 9. 更新转发状态
         forward.setStatus(targetStatus);
         forward.setUpdatedTime(System.currentTimeMillis());
         boolean result = this.updateById(forward);
@@ -691,24 +713,67 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
             return R.err("原隧道不存在，无法删除旧配置");
         }
 
-        // 2. 获取原隧道的节点信息
-        NodeInfo oldNodeInfo = getRequiredNodes(oldTunnel);
-        if (oldNodeInfo.isHasError()) {
-            log.warn("获取原隧道{}的节点信息失败: {}", oldTunnel.getId(), oldNodeInfo.getErrorMessage());
-        } else {
-            // 3. 删除原有的Gost服务配置
-            R deleteResult = deleteGostServices(existForward, oldTunnel, oldNodeInfo, userTunnel);
-            if (deleteResult.getCode() != 0) {
-                // 删除失败时记录日志，但不影响后续创建（可能原配置已不存在）
-                log.warn("删除原隧道{}的Gost配置失败: {}", oldTunnel.getId(), deleteResult.getMsg());
-            }
+        // 2. 删除原有的Gost服务配置
+        R deleteResult = deleteOldGostServices(existForward, oldTunnel, userTunnel);
+        if (deleteResult.getCode() != 0) {
+            // 删除失败时记录日志，但不影响后续创建（可能原配置已不存在）
+            log.warn("删除原隧道{}的Gost配置失败: {}", oldTunnel.getId(), deleteResult.getMsg());
         }
 
-        // 4. 创建新的Gost服务配置
+        // 3. 创建新的Gost服务配置
         R createResult = createGostServices(updatedForward, newTunnel, limiter, nodeInfo, userTunnel);
         if (createResult.getCode() != 0) {
             updateForwardStatusToError(updatedForward);
             return R.err("创建新隧道配置失败: " + createResult.getMsg());
+        }
+
+        return R.ok();
+    }
+
+    /**
+     * 删除原有的Gost服务（隧道变化时专用）
+     */
+    private R deleteOldGostServices(Forward forward, Tunnel oldTunnel, UserTunnel userTunnel) {
+        // 获取原隧道的用户隧道关系
+        UserTunnel oldUserTunnel = getUserTunnel(forward.getUserId(), oldTunnel.getId().intValue());
+        String serviceName = buildServiceName(forward.getId(), forward.getUserId(), forward.getTunnelId(), oldUserTunnel);
+
+        // 获取原隧道的节点信息
+        NodeInfo oldNodeInfo = getRequiredNodes(oldTunnel);
+        
+        // 删除主服务（使用原隧道的入口节点）
+        if (!oldNodeInfo.isHasError() && oldNodeInfo.getInNode() != null) {
+            GostDto serviceResult = GostUtil.DeleteService(oldNodeInfo.getInNode().getId(), serviceName);
+            if (!isGostOperationSuccess(serviceResult)) {
+                log.warn("删除主服务失败: {}", serviceResult.getMsg());
+            }
+        }
+
+        // 如果原隧道是隧道转发类型，需要删除链和远程服务
+        if (oldTunnel.getType() == TUNNEL_TYPE_TUNNEL_FORWARD) {
+            // 删除链服务
+            if (!oldNodeInfo.isHasError() && oldNodeInfo.getInNode() != null) {
+                GostDto chainResult = GostUtil.DeleteChains(oldNodeInfo.getInNode().getId(), serviceName);
+                if (!isGostOperationSuccess(chainResult)) {
+                    log.warn("删除链服务失败: {}", chainResult.getMsg());
+                }
+            }
+
+            // 删除远程服务（即使节点信息获取失败，也要尝试删除）
+            Node outNode = null;
+            if (!oldNodeInfo.isHasError()) {
+                outNode = oldNodeInfo.getOutNode();
+            } else {
+                // 即使获取节点信息失败，也尝试直接获取出口节点来删除远程服务
+                outNode = nodeService.getNodeById(oldTunnel.getOutNodeId());
+            }
+            
+            if (outNode != null) {
+                GostDto remoteResult = GostUtil.DeleteRemoteService(outNode.getId(), serviceName);
+                if (!isGostOperationSuccess(remoteResult)) {
+                    log.warn("删除远程服务失败: {}", remoteResult.getMsg());
+                }
+            }
         }
 
         return R.ok();

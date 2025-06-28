@@ -300,6 +300,12 @@ public class FlowController extends BaseController {
      */
     private void pauseServiceDueToTunnelLimit(Integer tunnelId, String forwardId,
                                               String userId, String userTunnelId) {
+        // 先检查转发状态，如果已经是暂停状态就不需要调用暂停服务
+        Forward currentForward = forwardService.getById(forwardId);
+        if (currentForward == null || currentForward.getStatus() == 0) {
+            return; // 转发不存在或已经暂停，无需处理
+        }
+
         Tunnel tunnel = tunnelService.getById(tunnelId);
         if (tunnel != null) {
             Node node = nodeService.getNodeById(tunnel.getInNodeId());
@@ -317,12 +323,11 @@ public class FlowController extends BaseController {
             }
         }
 
-        // 更新转发状态为暂停
-        Forward forward = forwardService.getById(forwardId);
-        if (forward != null) {
-            forward.setStatus(0);
-            forwardService.updateById(forward);
-        }
+        // 更新转发状态为暂停（只更新状态字段，避免覆盖流量数据）
+        UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", forwardId);
+        updateWrapper.set("status", 0);
+        forwardService.update(null, updateWrapper);
     }
 
     /**
@@ -330,6 +335,12 @@ public class FlowController extends BaseController {
      */
     private void pauseServiceDueToTunnelExpiration(Integer tunnelId, String forwardId,
                                                    String userId, String userTunnelId) {
+        // 先检查转发状态，如果已经是暂停状态就不需要调用暂停服务
+        Forward currentForward = forwardService.getById(forwardId);
+        if (currentForward == null || currentForward.getStatus() == 0) {
+            return; // 转发不存在或已经暂停，无需处理
+        }
+
         Tunnel tunnel = tunnelService.getById(tunnelId);
         if (tunnel != null) {
             Node node = nodeService.getNodeById(tunnel.getInNodeId());
@@ -347,12 +358,11 @@ public class FlowController extends BaseController {
             }
         }
 
-        // 更新转发状态为暂停
-        Forward forward = forwardService.getById(forwardId);
-        if (forward != null) {
-            forward.setStatus(0);
-            forwardService.updateById(forward);
-        }
+        // 更新转发状态为暂停（只更新状态字段，避免覆盖流量数据）
+        UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", forwardId);
+        updateWrapper.set("status", 0);
+        forwardService.update(null, updateWrapper);
     }
 
     /**
@@ -416,8 +426,8 @@ public class FlowController extends BaseController {
      * 检查转发状态 - 优化版本，使用传入的Forward实体
      */
     private void checkForwardStatus(Forward forward, String userId, String userTunnelId) {
-        // 检查转发状态是否为正常（1）
-        if (forward.getStatus() != 1) {
+        // 检查转发状态是否为正常（1），如果不正常且不是暂停状态，才需要暂停
+        if (forward.getStatus() != 1 && forward.getStatus() != 0) {
             pauseSpecificForward(forward, userId, userTunnelId);
         }
     }
@@ -426,6 +436,11 @@ public class FlowController extends BaseController {
      * 暂停指定的转发服务
      */
     private void pauseSpecificForward(Forward forward, String userId, String userTunnelId) {
+        // 先检查转发状态，如果已经是暂停状态就不需要调用暂停服务
+        if (forward.getStatus() == 0) {
+            return; // 已经暂停，无需处理
+        }
+
         Tunnel tunnel = tunnelService.getById(forward.getTunnelId());
         if (tunnel != null) {
             Node node = nodeService.getNodeById(tunnel.getInNodeId());
@@ -443,9 +458,11 @@ public class FlowController extends BaseController {
             }
         }
 
-        // 更新转发状态为暂停
-        forward.setStatus(0);
-        forwardService.updateById(forward);
+        // 更新转发状态为暂停（只更新状态字段，避免覆盖流量数据）
+        UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", forward.getId());
+        updateWrapper.set("status", 0);
+        forwardService.update(null, updateWrapper);
     }
 
     /**
@@ -455,6 +472,11 @@ public class FlowController extends BaseController {
         List<Forward> userForwards = forwardService.list(new QueryWrapper<Forward>().eq("user_id", userId));
 
         for (Forward forward : userForwards) {
+            // 先检查转发状态，如果已经是暂停状态就跳过
+            if (forward.getStatus() == 0) {
+                continue; // 已经暂停，跳过此转发
+            }
+
             Tunnel tunnel = tunnelService.getById(forward.getTunnelId());
             if (tunnel != null) {
                 Node node = nodeService.getNodeById(tunnel.getInNodeId());
@@ -474,8 +496,11 @@ public class FlowController extends BaseController {
                 }
             }
 
-            forward.setStatus(0);
-            forwardService.updateById(forward);
+            // 更新转发状态为暂停（只更新状态字段，避免覆盖流量数据）
+            UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("id", forward.getId());
+            updateWrapper.set("status", 0);
+            forwardService.update(null, updateWrapper);
         }
     }
 
