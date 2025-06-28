@@ -341,14 +341,13 @@ func (w *WebSocketReporter) handleReceivedMessage(messageType int, message []byt
 
 // routeCommand 路由命令到对应的处理函数
 func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
-	//jsonBytes, errs := json.MarshalIndent(cmd, "", "  ")
-	//if errs != nil {
-	//	fmt.Println("Error marshaling JSON:", errs)
-	//	return
-	//}
-	//
-	//// 打印 JSON 字符串
-	//fmt.Println("🔔 收到命令: ", string(jsonBytes))
+	jsonBytes, errs := json.Marshal(cmd)
+	if errs != nil {
+		fmt.Println("Error marshaling JSON:", errs)
+		return
+	}
+
+	fmt.Println("🔔 收到命令: ", string(jsonBytes))
 	var err error
 	var response CommandResponse
 
