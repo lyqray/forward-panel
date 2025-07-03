@@ -75,7 +75,7 @@
 
 不在提供gitee 自行解决github访问问题
 ```bash
-curl -L https://raw.githubusercontent.com/bqlpfy/forward-panel/refs/heads/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://raw.githubusercontent.com/lyqray/forward-panel/refs/heads/mytest/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 
 ```
 
