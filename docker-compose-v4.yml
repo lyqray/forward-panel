@@ -25,6 +25,19 @@ services:
       timeout: 10s
       retries: 10
 
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: gost-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql           # 这里写 MySQL 服务名
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1          # 允许手动输入服务器
+    ports:
+      - "8066:80"               # phpMyAdmin 对外暴露 http://localhost:8066
+    networks:
+      - gost-network
+
   backend:
     image: bqlpfy/springboot-backend:latest
     container_name: springboot-backend
@@ -79,4 +92,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16 
+        - subnet: 172.66.0.0/16 
