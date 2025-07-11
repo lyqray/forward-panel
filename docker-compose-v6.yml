@@ -82,13 +82,16 @@ services:
 
 volumes:
   mysql_data:
+    name: mysql_data
     driver: local
   backend_logs:
+    name: backend_logs
     driver: local
 
 
 networks:
   gost-network:
+    name: gost-network
     driver: bridge
     enable_ipv6: true
     ipam:

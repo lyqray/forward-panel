@@ -5,11 +5,15 @@ import com.admin.common.dto.FlowDto;
 import com.admin.common.dto.GostConfigDto;
 import com.admin.common.lang.R;
 import com.admin.common.task.CheckGostConfigAsync;
+import com.admin.common.utils.AESCrypto;
 import com.admin.common.utils.GostUtil;
 import com.admin.entity.*;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
@@ -41,6 +45,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/flow")
 @CrossOrigin
+@Slf4j
 public class FlowController extends BaseController {
 
     // 常量定义
@@ -55,19 +60,51 @@ public class FlowController extends BaseController {
     private static final ConcurrentHashMap<String, Object> TUNNEL_LOCKS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Object> FORWARD_LOCKS = new ConcurrentHashMap<>();
 
+    // 缓存加密器实例，避免重复创建
+    private static final ConcurrentHashMap<String, AESCrypto> CRYPTO_CACHE = new ConcurrentHashMap<>();
 
     @Resource
     CheckGostConfigAsync checkGostConfigAsync;
 
-    @PostMapping("/config")
-    @LogAnnotation
-    public String config(@RequestBody GostConfigDto gostConfigDto, String secret) {
-        Node node = nodeService.getOne(new QueryWrapper<Node>().eq("secret", secret));
-        if (node == null) return SUCCESS_RESPONSE;
-        checkGostConfigAsync.cleanNodeConfigs(node.getId().toString(), gostConfigDto);
-        return SUCCESS_RESPONSE;
+    /**
+     * 加密消息包装器
+     */
+    public static class EncryptedMessage {
+        private boolean encrypted;
+        private String data;
+        private Long timestamp;
+
+        // getters and setters
+        public boolean isEncrypted() { return encrypted; }
+        public void setEncrypted(boolean encrypted) { this.encrypted = encrypted; }
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
+        public Long getTimestamp() { return timestamp; }
+        public void setTimestamp(Long timestamp) { this.timestamp = timestamp; }
     }
 
+    @PostMapping("/config")
+    @LogAnnotation
+    public String config(@RequestBody String rawData, String secret) {
+        Node node = nodeService.getOne(new QueryWrapper<Node>().eq("secret", secret));
+        if (node == null) return SUCCESS_RESPONSE;
+        
+        try {
+            // 尝试解密数据
+            String decryptedData = decryptIfNeeded(rawData, secret);
+
+            // 解析为GostConfigDto
+            GostConfigDto gostConfigDto = JSON.parseObject(decryptedData, GostConfigDto.class);
+            checkGostConfigAsync.cleanNodeConfigs(node.getId().toString(), gostConfigDto);
+            
+            log.info("🔓 节点 {} 配置数据接收成功{}", node.getId(),  isEncryptedMessage(rawData) ? "（已解密）" : "");
+                    
+        } catch (Exception e) {
+            log.error("处理节点 {} 配置数据失败: {}", node.getId(), e.getMessage());
+        }
+        
+        return SUCCESS_RESPONSE;
+    }
 
     @RequestMapping("/test")
     @LogAnnotation
@@ -78,31 +115,106 @@ public class FlowController extends BaseController {
     /**
      * 处理流量数据上报
      *
-     * @param flowDataList 流量数据列表
-     * @param secret       节点密钥
+     * @param rawData 原始数据（可能是加密的）
+     * @param secret  节点密钥
      * @return 处理结果
      */
     @RequestMapping("/upload")
     @LogAnnotation
-    public String uploadFlowData(@RequestBody List<FlowDto> flowDataList, String secret) {
+    public String uploadFlowData(@RequestBody String rawData, String secret) {
         // 1. 验证节点权限
         if (!isValidNode(secret)) {
             return SUCCESS_RESPONSE;
         }
-        if (flowDataList.isEmpty()) {
+
+        try {
+            // 2. 尝试解密数据
+            String decryptedData = decryptIfNeeded(rawData, secret);
+            
+            // 3. 解析为FlowDto列表
+            List<FlowDto> flowDataList = JSON.parseArray(decryptedData, FlowDto.class);
+            
+            if (flowDataList.isEmpty()) {
+                return SUCCESS_RESPONSE;
+            }
+            if (Objects.equals(flowDataList.get(0).getN(), "web_api")) {
+                return SUCCESS_RESPONSE;
+            }
+
+            // 记录日志
+            log.debug("🔓 节点流量数据接收成功{}", 
+                     isEncryptedMessage(rawData) ? "（已解密）" : "");
+
+            // 4. 处理流量数据
+            return processFlowData(flowDataList);
+            
+        } catch (Exception e) {
+            log.error("处理流量数据失败: {}", e.getMessage(), e);
             return SUCCESS_RESPONSE;
         }
-        if(Objects.equals(flowDataList.get(0).getN(), "web_api")){
-            return SUCCESS_RESPONSE;
+    }
+
+    /**
+     * 检测消息是否为加密格式
+     */
+    private boolean isEncryptedMessage(String data) {
+        try {
+            JSONObject json = JSON.parseObject(data);
+            return json.getBooleanValue("encrypted");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 根据需要解密数据
+     */
+    private String decryptIfNeeded(String rawData, String secret) {
+        if (rawData == null || rawData.trim().isEmpty()) {
+            throw new IllegalArgumentException("数据不能为空");
         }
 
+        try {
+            // 尝试解析为加密消息格式
+            EncryptedMessage encryptedMessage = JSON.parseObject(rawData, EncryptedMessage.class);
+            
+            if (encryptedMessage.isEncrypted() && encryptedMessage.getData() != null) {
+                // 获取或创建加密器
+                AESCrypto crypto = getOrCreateCrypto(secret);
+                if (crypto == null) {
+                    log.warn("⚠️ 收到加密消息但无法创建解密器，使用原始数据");
+                    return rawData;
+                }
+                
+                // 解密数据
+                String decryptedData = crypto.decryptString(encryptedMessage.getData());
+                log.debug("🔓 数据解密成功");
+                return decryptedData;
+            }
+        } catch (Exception e) {
+            // 解析失败，可能是非加密格式，直接返回原始数据
+            log.debug("数据未加密或解密失败，使用原始数据: {}", e.getMessage());
+        }
+        
+        return rawData;
+    }
 
+    /**
+     * 获取或创建加密器实例
+     */
+    private AESCrypto getOrCreateCrypto(String secret) {
+        return CRYPTO_CACHE.computeIfAbsent(secret, AESCrypto::create);
+    }
+
+    /**
+     * 处理流量数据的核心逻辑
+     */
+    private String processFlowData(List<FlowDto> flowDataList) {
         // 2. 解析服务名称获取ID信息
         String[] serviceIds = parseServiceName(flowDataList.get(0).getN());
         String forwardId = serviceIds[0];
         String userId = serviceIds[1];
         String userTunnelId = serviceIds[2];
-
 
         // 3. 一次性查询相关实体，避免后续重复查询
         Forward forward = forwardService.getById(forwardId);
@@ -111,15 +223,12 @@ public class FlowController extends BaseController {
         if (!Objects.equals(userTunnelId, DEFAULT_USER_TUNNEL_ID)) {
             userTunnel = userTunnelService.getById(userTunnelId);
         }
+        
         // 4. 处理流量倍率
         List<FlowDto> validFlowData = filterFlowData(flowDataList, forward);
 
-
-
         // 5. 计算总流量
         FlowStatistics flowStats = calculateTotalFlow(validFlowData);
-
-
 
         // 6. 获取流量计费类型
         int flowType = getFlowType(forward);

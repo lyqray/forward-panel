@@ -6,6 +6,7 @@ import com.admin.common.dto.GostDto;
 import com.admin.common.task.CheckGostConfigAsync;
 import com.admin.entity.Node;
 import com.admin.service.NodeService;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,25 @@ public class WebSocketServer extends TextWebSocketHandler {
     // 存储等待响应的请求，key为requestId，value为CompletableFuture
     private static final ConcurrentHashMap<String, CompletableFuture<GostDto>> pendingRequests = new ConcurrentHashMap<>();
     
+    // 缓存加密器实例，避免重复创建
+    private static final ConcurrentHashMap<String, AESCrypto> cryptoCache = new ConcurrentHashMap<>();
+
+    /**
+     * 加密消息包装器
+     */
+    public static class EncryptedMessage {
+        private boolean encrypted;
+        private String data;
+        private Long timestamp;
+
+        // getters and setters
+        public boolean isEncrypted() { return encrypted; }
+        public void setEncrypted(boolean encrypted) { this.encrypted = encrypted; }
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
+        public Long getTimestamp() { return timestamp; }
+        public void setTimestamp(Long timestamp) { this.timestamp = timestamp; }
+    }
 
     //接受客户端消息
     @Override
@@ -51,15 +71,19 @@ public class WebSocketServer extends TextWebSocketHandler {
                 
                 String id = session.getAttributes().get("id").toString();
                 String type = session.getAttributes().get("type").toString();
+                String nodeSecret = (String) session.getAttributes().get("nodeSecret");
 
-                if (message.getPayload().contains("memory_usage")){
+                // 尝试解密消息
+                String decryptedPayload = decryptMessageIfNeeded(message.getPayload(), nodeSecret);
+
+                if (decryptedPayload.contains("memory_usage")){
                     // 先发送确认消息
-                    sendToUser(session, "{\"type\":\"call\"}");
-                }else if (message.getPayload().contains("requestId")) {
-                    log.info("收到消息: {}", message.getPayload());
+                    sendToUser(session, "{\"type\":\"call\"}", nodeSecret);
+                }else if (decryptedPayload.contains("requestId")) {
+                    log.info("收到消息: {}", decryptedPayload);
                     // 处理命令响应消息
                     try {
-                        JSONObject responseJson = JSONObject.parseObject(message.getPayload());
+                        JSONObject responseJson = JSONObject.parseObject(decryptedPayload);
                         String requestId = responseJson.getString("requestId");
                         String responseMessage = responseJson.getString("message");
                         String responseType = responseJson.getString("type");
@@ -91,7 +115,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                         log.error("处理响应消息失败: {}", e.getMessage(), e);
                     }
                 } else {
-                    log.info("收到消息: {}", message.getPayload());
+                    log.info("收到消息: {}", decryptedPayload);
                 }
 
                 // 如果是节点类型，转发消息给其他会话
@@ -99,13 +123,13 @@ public class WebSocketServer extends TextWebSocketHandler {
                     JSONObject jsonObject = new JSONObject();
                     jsonObject.put("id", id);
                     jsonObject.put("type", "info");
-                    jsonObject.put("data", message.getPayload());
+                    jsonObject.put("data", decryptedPayload);
                     String broadcastMessage = jsonObject.toJSONString();
                     
                     // 异步处理广播消息，避免阻塞当前线程
                     for (WebSocketSession targetSession : activeSessions) {
                         if (targetSession != null && targetSession.isOpen() && !targetSession.equals(session)) {
-                            sendToUser(targetSession, broadcastMessage);
+                            sendToUser(targetSession, broadcastMessage, null);
                         }
                     }
                 }
@@ -113,6 +137,78 @@ public class WebSocketServer extends TextWebSocketHandler {
         } catch (Exception e) {
             log.error("处理WebSocket消息时发生异常: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * 尝试解密消息（如果需要）
+     */
+    private String decryptMessageIfNeeded(String payload, String nodeSecret) {
+        if (payload == null || payload.trim().isEmpty()) {
+            return payload;
+        }
+
+        try {
+            // 尝试解析为加密消息格式
+            EncryptedMessage encryptedMessage = JSON.parseObject(payload, EncryptedMessage.class);
+            
+            if (encryptedMessage.isEncrypted() && encryptedMessage.getData() != null) {
+                // 获取或创建加密器
+                AESCrypto crypto = getOrCreateCrypto(nodeSecret);
+                if (crypto == null) {
+                    log.warn("⚠️ 收到加密消息但无法创建解密器，使用原始数据");
+                    return payload;
+                }
+                
+                // 解密数据
+                String decryptedData = crypto.decryptString(encryptedMessage.getData());
+                log.debug("🔓 WebSocket消息解密成功");
+                return decryptedData;
+            }
+        } catch (Exception e) {
+            // 解析失败，可能是非加密格式，直接返回原始数据
+            log.debug("WebSocket消息未加密或解密失败，使用原始数据: {}", e.getMessage());
+        }
+        
+        return payload;
+    }
+
+    /**
+     * 加密消息（如果可能）
+     */
+    private static String encryptMessageIfPossible(String message, String nodeSecret) {
+        if (message == null || nodeSecret == null) {
+            return message;
+        }
+
+        try {
+            AESCrypto crypto = getOrCreateCrypto(nodeSecret);
+            if (crypto != null) {
+                String encryptedData = crypto.encrypt(message);
+                
+                // 创建加密消息包装器
+                JSONObject encryptedMessage = new JSONObject();
+                encryptedMessage.put("encrypted", true);
+                encryptedMessage.put("data", encryptedData);
+                encryptedMessage.put("timestamp", System.currentTimeMillis());
+                
+                log.debug("🔐 WebSocket消息加密成功");
+                return encryptedMessage.toJSONString();
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ WebSocket消息加密失败，发送原始数据: {}", e.getMessage());
+        }
+
+        return message;
+    }
+
+    /**
+     * 获取或创建加密器实例
+     */
+    private static AESCrypto getOrCreateCrypto(String secret) {
+        if (secret == null || secret.isEmpty()) {
+            return null;
+        }
+        return cryptoCache.computeIfAbsent(secret, AESCrypto::create);
     }
 
     // 建立连接
@@ -232,7 +328,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                 boolean shouldUpdateOffline = true;
                 try {
                     // 尝试发送验证消息，如果发送成功说明连接可能还活跃
-                    sendToUser(session, "{\"type\":\"call\"}");
+                    sendToUser(session, "{\"type\":\"call\"}", null);
                     log.warn("节点 {} 连接关闭但仍能发送消息，可能是假断开", nodeId);
                     shouldUpdateOffline = false;
                 } catch (Exception e) {
@@ -277,6 +373,12 @@ public class WebSocketServer extends TextWebSocketHandler {
     // 点对点发送消息
     @SneakyThrows
     public static void sendToUser(WebSocketSession socketSession, String message) {
+        sendToUser(socketSession, message, null);
+    }
+
+    // 点对点发送消息（支持加密）
+    @SneakyThrows
+    public static void sendToUser(WebSocketSession socketSession, String message, String nodeSecret) {
         if (socketSession != null && socketSession.isOpen()) {
             String sessionId = socketSession.getId();
             Object lock = sessionLocks.computeIfAbsent(sessionId, k -> new Object());
@@ -284,7 +386,15 @@ public class WebSocketServer extends TextWebSocketHandler {
             synchronized (lock) {
                 try {
                     if (socketSession.isOpen()) {
-                        socketSession.sendMessage(new TextMessage(message));
+                        // 如果是节点连接且有密钥，尝试加密消息
+                        String finalMessage = message;
+                        if (nodeSecret != null && !nodeSecret.isEmpty()) {
+                            String type = (String) socketSession.getAttributes().get("type");
+                            if ("1".equals(type)) { // 节点连接
+                                finalMessage = encryptMessageIfPossible(message, nodeSecret);
+                            }
+                        }
+                        socketSession.sendMessage(new TextMessage(finalMessage));
                     }
                 } catch (Exception e) {
                     log.error("发送WebSocket消息失败 [sessionId={}]: {}", sessionId, e.getMessage());
@@ -354,13 +464,15 @@ public class WebSocketServer extends TextWebSocketHandler {
         CompletableFuture<GostDto> future = new CompletableFuture<>();
         pendingRequests.put(requestId, future);
         
+        // 获取节点密钥用于加密
+        String nodeSecret = (String) nodeSession.getAttributes().get("nodeSecret");
 
         try {
             JSONObject data = new JSONObject();
             data.put("type", type);
             data.put("data", msg);
             data.put("requestId", requestId);
-            sendToUser(nodeSession, data.toJSONString());
+            sendToUser(nodeSession, data.toJSONString(), nodeSecret);
             GostDto result = future.get(10, TimeUnit.SECONDS);
             
             log.debug("成功发送消息到节点 {} 并收到响应: {}", node_id, result.getMsg());

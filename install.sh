@@ -144,19 +144,15 @@ install_gost() {
   # 打印版本
   echo "🔎 gost 版本：$($INSTALL_DIR/gost -V)"
 
-  # 写入 config.json
+  # 写入 config.json (安装时总是创建新的)
   CONFIG_FILE="$INSTALL_DIR/config.json"
-  if [[ -f "$CONFIG_FILE" ]]; then
-    echo "⏭️ 跳过配置文件: config.json (已存在)"
-  else
-    echo "📄 创建新配置: config.json"
-    cat > "$CONFIG_FILE" <<EOF
+  echo "📄 创建新配置: config.json"
+  cat > "$CONFIG_FILE" <<EOF
 {
   "addr": "$SERVER_ADDR",
   "secret": "$SECRET"
 }
 EOF
-  fi
 
   # 写入 gost.json
   GOST_CONFIG="$INSTALL_DIR/gost.json"
