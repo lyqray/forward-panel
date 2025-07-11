@@ -31,21 +31,21 @@ public class GostUtil {
         return WebSocketServer.send_msg(node_id, req, "DeleteLimiters");
     }
 
-    public static GostDto AddService(Long node_id, String name, Integer in_port, Integer limiter, String remoteAddr, Integer fow_type, Tunnel tunnel, String strategy, Integer proxy_protocol) {
+    public static GostDto AddService(Long node_id, String name, Integer in_port, Integer limiter, String remoteAddr, Integer fow_type, Tunnel tunnel, String strategy) {
         JSONArray services = new JSONArray();
         String[] protocols = {"tcp", "udp"};
         for (String protocol : protocols) {
-            JSONObject service = createServiceConfig(name, in_port, limiter, remoteAddr, protocol, fow_type, tunnel, strategy, proxy_protocol);
+            JSONObject service = createServiceConfig(name, in_port, limiter, remoteAddr, protocol, fow_type, tunnel, strategy);
             services.add(service);
         }
         return WebSocketServer.send_msg(node_id, services, "AddService");
     }
 
-    public static GostDto UpdateService(Long node_id, String name, Integer in_port, Integer limiter, String remoteAddr, Integer fow_type, Tunnel tunnel, String strategy, Integer proxy_protocol) {
+    public static GostDto UpdateService(Long node_id, String name, Integer in_port, Integer limiter, String remoteAddr, Integer fow_type, Tunnel tunnel, String strategy) {
         JSONArray services = new JSONArray();
         String[] protocols = {"tcp", "udp"};
         for (String protocol : protocols) {
-            JSONObject service = createServiceConfig(name, in_port, limiter, remoteAddr, protocol, fow_type, tunnel, strategy, proxy_protocol);
+            JSONObject service = createServiceConfig(name, in_port, limiter, remoteAddr, protocol, fow_type, tunnel, strategy);
             services.add(service);
         }
         return WebSocketServer.send_msg(node_id, services, "UpdateService");
@@ -255,7 +255,7 @@ public class GostUtil {
         return data;
     }
 
-    private static JSONObject createServiceConfig(String name, Integer in_port, Integer limiter, String remoteAddr, String protocol, Integer fow_type, Tunnel tunnel, String strategy, Integer proxy_protocol) {
+    private static JSONObject createServiceConfig(String name, Integer in_port, Integer limiter, String remoteAddr, String protocol, Integer fow_type, Tunnel tunnel, String strategy) {
         JSONObject service = new JSONObject();
         service.put("name", name + "_" + protocol);
         if (Objects.equals(protocol, "tcp")){
@@ -279,13 +279,9 @@ public class GostUtil {
 
         // 端口转发需要配置转发器
         if (isPortForwarding(fow_type)) {
-            JSONObject forwarder = createForwarder(protocol, remoteAddr, strategy);
+            JSONObject forwarder = createForwarder(remoteAddr, strategy);
             service.put("forwarder", forwarder);
         }
-        JSONObject metadata = new JSONObject();
-        metadata.put("proxyProtocol", proxy_protocol);
-        service.put("metadata", metadata);
-
         return service;
     }
 
@@ -312,7 +308,7 @@ public class GostUtil {
         return listener;
     }
 
-    private static JSONObject createForwarder(String protocol, String remoteAddr, String strategy) {
+    private static JSONObject createForwarder(String remoteAddr, String strategy) {
         JSONObject forwarder = new JSONObject();
         JSONArray nodes = new JSONArray();
 

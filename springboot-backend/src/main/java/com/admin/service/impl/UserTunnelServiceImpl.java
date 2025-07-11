@@ -499,7 +499,7 @@ public class UserTunnelServiceImpl extends ServiceImpl<UserTunnelMapper, UserTun
             String serviceName = buildServiceName(forward.getId(), Long.valueOf(userId), userTunnel.getId());
 
             // 6. 更新入口节点的主服务限速配置（使用批量UpdateService接口）
-            GostUtil.UpdateService(inNode.getId(), serviceName, forward.getInPort(), speedId, forward.getRemoteAddr(), tunnel.getType(), tunnel, forward.getStrategy(), forward.getProxyProtocol());
+            GostUtil.UpdateService(inNode.getId(), serviceName, forward.getInPort(), speedId, forward.getRemoteAddr(), tunnel.getType(), tunnel, forward.getStrategy());
         }
     }
 }

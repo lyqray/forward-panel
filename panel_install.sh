@@ -137,7 +137,8 @@ show_menu() {
   echo "1. 安装面板"
   echo "2. 更新面板"
   echo "3. 卸载面板"
-  echo "4. 退出"
+  echo "4. 导出数据库备份"
+  echo "5. 退出"
   echo "==============================================="
 }
 
@@ -184,8 +185,15 @@ install_panel() {
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
   echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
   curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
-  curl -L -o gost.sql "$GOST_SQL_URL"
-  echo "✅ 下载完成"
+  
+  # 检查 gost.sql 是否已存在
+  if [[ -f "gost.sql" ]]; then
+    echo "⏭️ 跳过下载: gost.sql (使用当前位置的文件)"
+  else
+    echo "📡 下载数据库初始化文件..."
+    curl -L -o gost.sql "$GOST_SQL_URL"
+  fi
+  echo "✅ 文件准备完成"
 
   # 自动检测并配置 IPv6 支持
   if check_ipv6_support; then
@@ -667,6 +675,24 @@ UPDATE \`tunnel\`
 SET \`traffic_ratio\` = 1.0
 WHERE \`traffic_ratio\` IS NULL;
 
+-- forward 表：删除 proxy_protocol 字段（如果存在）
+SET @sql = (
+  SELECT IF(
+    EXISTS (
+      SELECT 1
+      FROM information_schema.COLUMNS
+      WHERE table_schema = DATABASE()
+        AND table_name = 'forward'
+        AND column_name = 'proxy_protocol'
+    ),
+    'ALTER TABLE \`forward\` DROP COLUMN \`proxy_protocol\`;',
+    'SELECT "Column \`proxy_protocol\` not exists in \`forward\`";'
+  )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- forward 表：修改 remote_addr 字段类型为 longtext
 SET @sql = (
   SELECT IF(
@@ -709,28 +735,7 @@ UPDATE \`forward\`
 SET \`strategy\` = 'fifo'
 WHERE \`strategy\` IS NULL;
 
--- forward 表：添加 proxy_protocol 字段
-SET @sql = (
-  SELECT IF(
-    NOT EXISTS (
-      SELECT 1
-      FROM information_schema.COLUMNS
-      WHERE table_schema = DATABASE()
-        AND table_name = 'forward'
-        AND column_name = 'proxy_protocol'
-    ),
-    'ALTER TABLE \`forward\` ADD COLUMN \`proxy_protocol\` INT(10) NOT NULL DEFAULT 0 COMMENT "Proxy Protocol 支持";',
-    'SELECT "Column \`proxy_protocol\` already exists in \`forward\`";'
-  )
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
 
--- 为现有数据设置默认 proxy_protocol 值
-UPDATE \`forward\`
-SET \`proxy_protocol\` = 0
-WHERE \`proxy_protocol\` IS NULL;
 EOF
   
   # 检查数据库容器
@@ -765,6 +770,113 @@ EOF
   echo "✅ 更新完成"
 }
 
+# 导出数据库备份
+export_migration_sql() {
+  echo "📄 开始导出数据库备份..."
+  
+  # 获取数据库配置信息
+  echo "🔍 获取数据库配置信息..."
+  
+  # 先检查后端容器是否在运行
+  if ! docker ps --format "{{.Names}}" | grep -q "^springboot-backend$"; then
+    echo "❌ 后端容器未运行，尝试从 .env 文件读取配置..."
+    
+    # 从 .env 文件读取配置
+    if [[ -f ".env" ]]; then
+      DB_NAME=$(grep "^DB_NAME=" .env | cut -d'=' -f2 2>/dev/null)
+      DB_PASSWORD=$(grep "^DB_PASSWORD=" .env | cut -d'=' -f2 2>/dev/null)
+      DB_USER=$(grep "^DB_USER=" .env | cut -d'=' -f2 2>/dev/null)
+      
+      if [[ -n "$DB_NAME" && -n "$DB_PASSWORD" && -n "$DB_USER" ]]; then
+        echo "✅ 从 .env 文件读取数据库配置成功"
+      else
+        echo "❌ .env 文件中的数据库配置不完整"
+        return 1
+      fi
+    else
+      echo "❌ 未找到 .env 文件"
+      return 1
+    fi
+  else
+    # 从容器环境变量获取数据库信息
+    DB_INFO=$(docker exec springboot-backend env | grep "^DB_" 2>/dev/null || echo "")
+    
+    if [[ -n "$DB_INFO" ]]; then
+      DB_NAME=$(echo "$DB_INFO" | grep "^DB_NAME=" | cut -d'=' -f2)
+      DB_PASSWORD=$(echo "$DB_INFO" | grep "^DB_PASSWORD=" | cut -d'=' -f2)
+      DB_USER=$(echo "$DB_INFO" | grep "^DB_USER=" | cut -d'=' -f2)
+      
+      echo "✅ 从容器环境变量读取数据库配置成功"
+    else
+      echo "❌ 无法从容器获取数据库配置，尝试从 .env 文件读取..."
+      
+      if [[ -f ".env" ]]; then
+        DB_NAME=$(grep "^DB_NAME=" .env | cut -d'=' -f2 2>/dev/null)
+        DB_PASSWORD=$(grep "^DB_PASSWORD=" .env | cut -d'=' -f2 2>/dev/null)
+        DB_USER=$(grep "^DB_USER=" .env | cut -d'=' -f2 2>/dev/null)
+        
+        if [[ -n "$DB_NAME" && -n "$DB_PASSWORD" && -n "$DB_USER" ]]; then
+          echo "✅ 从 .env 文件读取数据库配置成功"
+        else
+          echo "❌ .env 文件中的数据库配置不完整"
+          return 1
+        fi
+      else
+        echo "❌ 未找到 .env 文件"
+        return 1
+      fi
+    fi
+  fi
+  
+  # 检查必要的数据库配置
+  if [[ -z "$DB_PASSWORD" || -z "$DB_USER" || -z "$DB_NAME" ]]; then
+    echo "❌ 数据库配置不完整（缺少必要参数）"
+    return 1
+  fi
+  
+  echo "📋 数据库配置："
+  echo "   数据库名: $DB_NAME"
+  echo "   用户名: $DB_USER"
+  
+  # 检查数据库容器是否运行
+  if ! docker ps --format "{{.Names}}" | grep -q "^gost-mysql$"; then
+    echo "❌ 数据库容器未运行，无法导出数据"
+    echo "🔍 当前运行的容器："
+    docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+    return 1
+  fi
+  
+  # 生成数据库备份文件
+  SQL_FILE="database_backup_$(date +%Y%m%d_%H%M%S).sql"
+  echo "📝 导出数据库备份: $SQL_FILE"
+  
+  # 使用 mysqldump 导出数据库
+  echo "⏳ 正在导出数据库..."
+  if docker exec gost-mysql mysqldump -u "$DB_USER" -p"$DB_PASSWORD" --single-transaction --routines --triggers "$DB_NAME" > "$SQL_FILE" 2>/dev/null; then
+    echo "✅ 数据库导出成功"
+  else
+    echo "⚠️ 使用用户密码失败，尝试root密码..."
+    if docker exec gost-mysql mysqldump -u root -p"$DB_PASSWORD" --single-transaction --routines --triggers "$DB_NAME" > "$SQL_FILE" 2>/dev/null; then
+      echo "✅ 数据库导出成功"
+    else
+      echo "❌ 数据库导出失败"
+      rm -f "$SQL_FILE"
+      return 1
+    fi
+  fi
+  
+  # 检查文件大小
+  if [[ -f "$SQL_FILE" ]] && [[ -s "$SQL_FILE" ]]; then
+    FILE_SIZE=$(du -h "$SQL_FILE" | cut -f1)
+    echo "📁 文件位置: $(pwd)/$SQL_FILE"
+    echo "📊 文件大小: $FILE_SIZE"
+  else
+    echo "❌ 导出的文件为空或不存在"
+    rm -f "$SQL_FILE"
+    return 1
+  fi
+}
+
 # 卸载功能
 uninstall_panel() {
   echo "🗑️ 开始卸载面板..."
@@ -796,7 +908,7 @@ main() {
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-4): " choice
+    read -p "请输入选项 (1-5): " choice
     
     case $choice in
       1)
@@ -812,11 +924,15 @@ main() {
         break
         ;;
       4)
+        export_migration_sql
+        break
+        ;;
+      5)
         echo "👋 退出脚本"
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-4"
+        echo "❌ 无效选项，请输入 1-5"
         echo ""
         ;;
     esac

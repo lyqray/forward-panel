@@ -26,9 +26,5 @@ public class ForwardDto {
     @Min(value = 1, message = "端口号不能小于1")
     @Max(value = 65535, message = "端口号不能大于65535")
     private Integer inPort;
-    
-    /**
-     * 是否启用代理协议（0: 禁用, 1: 启用）
-     */
-    private Integer proxyProtocol = 0; // 设置默认值为0（禁用）
+
 } 
