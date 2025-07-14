@@ -781,9 +781,10 @@ export default function TunnelPage() {
                           variant="bordered"
                           isDisabled={isEdit}
                         >
-                          <SelectItem key="tls">TLS</SelectItem>
-                          <SelectItem key="tcp">TCP</SelectItem>
-                          <SelectItem key="mtls">mTLS</SelectItem>
+                          <SelectItem key="tls">TLS - 数据过墙选择这个(推荐)</SelectItem>
+                          <SelectItem key="wss">WSS - 数据过墙选择这个</SelectItem>
+                          <SelectItem key="tcp">TCP - IX隧道数据不过墙</SelectItem>
+                          <SelectItem key="mtls">mTLS - 多路复用，低延迟，有IP被封禁风险</SelectItem>
                         </Select>
 
                         <Select
@@ -829,16 +830,13 @@ export default function TunnelPage() {
                       </>
                     )}
 
-                    {/* 端口转发提示 */}
-                    {form.type === 1 && (
-                      <Alert
+                    <Alert
                         color="primary"
                         variant="flat"
-                        title="端口转发模式"
-                        description="出口配置将自动使用入口配置"
+                        title="TCP,UDP监听地址"
+                        description="V6或者双栈填写[::],V4填写0.0.0.0。不懂的就去看文档网站内的说明"
                         className="mt-4"
                       />
-                    )}
                   </div>
                 </ModalBody>
                 <ModalFooter>

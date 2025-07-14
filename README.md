@@ -110,3 +110,9 @@ curl -L https://raw.githubusercontent.com/lyqray/forward-panel/refs/heads/mytest
 **作者对因使用本项目所造成的任何直接或间接损失概不负责，也不提供任何形式的担保或技术支持。**
 
 请确保在合法、合规、安全的前提下使用本项目。
+---
+
+**⭐ 如果这个项目对您有帮助，请给个 Star 支持一下！**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=bqlpfy/forward-panel&type=Date)](https://www.star-history.com/#bqlpfy/forward-panel&Date)
+

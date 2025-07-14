@@ -899,6 +899,7 @@ export default function ForwardPage() {
                         <SelectItem key="fifo" >主备模式 - 自上而下</SelectItem>
                         <SelectItem key="round" >轮询模式 - 依次轮换</SelectItem>
                         <SelectItem key="rand" >随机模式 - 随机选择</SelectItem>
+                        <SelectItem key="hash" >哈希模式 - IP哈希</SelectItem>
                       </Select>
                     )}
 

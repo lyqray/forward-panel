@@ -260,7 +260,7 @@ export default function AdminLayout({
              <Logo size={28} />
              <div>
                <h1 className="text-base font-bold text-foreground">哆啦A梦</h1>
-               <p className="text-xs text-default-500">v1.0.6</p>
+               <p className="text-xs text-default-500">v1.0.7</p>
              </div>
            </div>
          </div>

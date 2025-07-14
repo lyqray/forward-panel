@@ -81,7 +81,6 @@ public class ForwardController extends BaseController {
      * @return 诊断结果
      */
     @LogAnnotation
-    @RequireRole
     @PostMapping("/diagnose")
     public R diagnoseForward(@RequestBody Map<String, Object> params) {
         Long forwardId = Long.valueOf(params.get("forwardId").toString());

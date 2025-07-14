@@ -324,20 +324,7 @@ public class WebSocketServer extends TextWebSocketHandler {
                 
                 log.info("节点 {} 当前活跃连接关闭，开始验证并更新状态", nodeId);
                 
-                // 先验证连接是否真的断开（发送call消息测试）
-                boolean shouldUpdateOffline = true;
-                try {
-                    // 尝试发送验证消息，如果发送成功说明连接可能还活跃
-                    sendToUser(session, "{\"type\":\"call\"}", null);
-                    log.warn("节点 {} 连接关闭但仍能发送消息，可能是假断开", nodeId);
-                    shouldUpdateOffline = false;
-                } catch (Exception e) {
-                    log.info("节点 {} 连接验证失败，确认连接已断开: {}", nodeId, e.getMessage());
-                }
-                
-                if (shouldUpdateOffline) {
-                    // 移除会话映射
-                    WebSocketSession removedSession = nodeSessions.remove(nodeId);
+                    nodeSessions.remove(nodeId);
                     
                     // 更新节点状态为离线
                     Node node = nodeService.getById(nodeId);
@@ -359,7 +346,6 @@ public class WebSocketServer extends TextWebSocketHandler {
                     } else {
                         log.warn("节点 {} 不存在，无法更新离线状态", nodeId);
                     }
-                }
             }
             
             // 清理session锁对象
