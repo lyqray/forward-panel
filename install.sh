@@ -117,6 +117,18 @@ done
 install_gost() {
   echo "🚀 开始安装 GOST..."
   get_config_params
+  
+  # 询问是否有加速下载地址
+  echo ""
+  echo "📥 检查下载地址..."
+  read -p "是否有加速下载地址？(留空使用默认地址): " custom_url
+  if [[ -n "$custom_url" ]]; then
+    DOWNLOAD_URL="$custom_url"
+    echo "✅ 使用自定义下载地址: $DOWNLOAD_URL"
+  else
+    echo "✅ 使用默认下载地址: $DOWNLOAD_URL"
+  fi
+  
     # 检查并安装 tcpkill
   check_and_install_tcpkill
   mkdir -p "$INSTALL_DIR"
@@ -209,6 +221,18 @@ update_gost() {
     echo "❌ GOST 未安装，请先选择安装。"
     return 1
   fi
+  
+  # 询问是否有加速下载地址
+  echo ""
+  echo "📥 检查下载地址..."
+  read -p "是否有加速下载地址？(留空使用默认地址): " custom_url
+  if [[ -n "$custom_url" ]]; then
+    DOWNLOAD_URL="$custom_url"
+    echo "✅ 使用自定义下载地址: $DOWNLOAD_URL"
+  else
+    echo "✅ 使用默认下载地址: $DOWNLOAD_URL"
+  fi
+  
   # 检查并安装 tcpkill
   check_and_install_tcpkill
   # 先下载新版本
