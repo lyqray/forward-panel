@@ -21,6 +21,7 @@ import java.util.Objects;
 @Configuration
 @Slf4j
 public class WebSocketInterceptor extends HttpSessionHandshakeInterceptor {
+
     @Resource
     NodeService nodeService;
 

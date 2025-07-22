@@ -68,9 +68,12 @@ public class ResetFlowAsync {
      */
     private void resetUserFlow(int currentDay, int lastDayOfMonth) {
         try {
-            // flowResetTime字段存储的是1-31的数字，表示每月第几号重置
+            // flowResetTime字段存储的是0-31的数字，0表示不重置，1-31表示每月第几号重置
             // 构建查询条件：重置日期等于今天，或者重置日期大于当月最大天数且今天是月末
+            // 排除flowResetTime为0的记录（不重置）
             QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            queryWrapper.ne("flow_reset_time", 0); // 排除不重置的用户
+            
             if (currentDay == lastDayOfMonth) {
                 // 如果今天是月末，查询重置日期等于今天或者大于当月最大天数的记录
                 // 例如：当月30天，但用户设置31号重置，则在30号执行重置
@@ -118,9 +121,12 @@ public class ResetFlowAsync {
      */
     private void resetUserTunnelFlow(int currentDay, int lastDayOfMonth) {
         try {
-            // flowResetTime字段存储的是1-31的数字，表示每月第几号重置
+            // flowResetTime字段存储的是0-31的数字，0表示不重置，1-31表示每月第几号重置
             // 构建查询条件：重置日期等于今天，或者重置日期大于当月最大天数且今天是月末
+            // 排除flowResetTime为0的记录（不重置）
             QueryWrapper<UserTunnel> queryWrapper = new QueryWrapper<>();
+            queryWrapper.ne("flow_reset_time", 0); // 排除不重置的用户隧道
+            
             if (currentDay == lastDayOfMonth) {
                 // 如果今天是月末，查询重置日期等于今天或者大于当月最大天数的记录
                 // 例如：当月30天，但用户设置31号重置，则在30号执行重置

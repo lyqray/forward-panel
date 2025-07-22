@@ -8,9 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os/exec"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync" // 新增：用于管理连接状态的互斥锁
 	"time"
@@ -65,19 +62,22 @@ type CommandResponse struct {
 	RequestId string      `json:"requestId,omitempty"`
 }
 
-// PingRequest ping请求结构体
-type PingRequest struct {
+// TcpPingRequest TCP ping请求结构体
+type TcpPingRequest struct {
 	IP        string `json:"ip"`
+	Port      int    `json:"port"`
 	Count     int    `json:"count"`
+	Timeout   int    `json:"timeout"`  // 超时时间(毫秒)
 	RequestId string `json:"requestId,omitempty"`
 }
 
-// PingResponse ping响应结构体
-type PingResponse struct {
+// TcpPingResponse TCP ping响应结构体
+type TcpPingResponse struct {
 	IP           string  `json:"ip"`
+	Port         int     `json:"port"`
 	Success      bool    `json:"success"`
-	AverageTime  float64 `json:"averageTime"` // 平均延迟(ms)
-	PacketLoss   float64 `json:"packetLoss"`  // 丢包率(%)
+	AverageTime  float64 `json:"averageTime"` // 平均连接时间(ms)
+	PacketLoss   float64 `json:"packetLoss"`  // 连接失败率(%)
 	ErrorMessage string  `json:"errorMessage,omitempty"`
 	RequestId    string  `json:"requestId,omitempty"`
 }
@@ -517,12 +517,12 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleDeleteLimiter(cmd.Data)
 		response.Type = "DeleteLimitersResponse"
 
-	// Ping 诊断命令
-	case "Ping":
-		var pingResult PingResponse
-		pingResult, err = w.handlePing(cmd.Data)
-		response.Type = "PingResponse"
-		response.Data = pingResult
+	// TCP Ping 诊断命令
+	case "TcpPing":
+		var tcpPingResult TcpPingResponse
+		tcpPingResult, err = w.handleTcpPing(cmd.Data)
+		response.Type = "TcpPingResponse"
+		response.Data = tcpPingResult
 
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
@@ -944,38 +944,54 @@ func StartWebSocketReporterWithConfig(Addr string, Secret string, Version string
 	return reporter
 }
 
-// handlePing 处理ping诊断命令
-func (w *WebSocketReporter) handlePing(data interface{}) (PingResponse, error) {
+// handleTcpPing 处理TCP ping诊断命令
+func (w *WebSocketReporter) handleTcpPing(data interface{}) (TcpPingResponse, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return PingResponse{}, fmt.Errorf("序列化ping数据失败: %v", err)
+		return TcpPingResponse{}, fmt.Errorf("序列化TCP ping数据失败: %v", err)
 	}
 
-	var req PingRequest
+	var req TcpPingRequest
 	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return PingResponse{}, fmt.Errorf("解析ping请求失败: %v", err)
+		return TcpPingResponse{}, fmt.Errorf("解析TCP ping请求失败: %v", err)
 	}
 
 	// 验证IP地址格式
 	if net.ParseIP(req.IP) == nil && !isValidHostname(req.IP) {
-		return PingResponse{
+		return TcpPingResponse{
 			IP:           req.IP,
+			Port:         req.Port,
 			Success:      false,
 			ErrorMessage: "无效的IP地址或主机名",
 			RequestId:    req.RequestId,
 		}, nil
 	}
 
-	// 设置默认ping次数
+	// 验证端口范围
+	if req.Port <= 0 || req.Port > 65535 {
+		return TcpPingResponse{
+			IP:           req.IP,
+			Port:         req.Port,
+			Success:      false,
+			ErrorMessage: "无效的端口号，范围应为1-65535",
+			RequestId:    req.RequestId,
+		}, nil
+	}
+
+	// 设置默认值
 	if req.Count <= 0 {
 		req.Count = 4
 	}
+	if req.Timeout <= 0 {
+		req.Timeout = 5000 // 默认5秒超时
+	}
 
-	// 执行ping操作
-	avgTime, packetLoss, err := pingHost(req.IP, req.Count)
+	// 执行TCP ping操作
+	avgTime, packetLoss, err := tcpPingHost(req.IP, req.Port, req.Count, req.Timeout)
 
-	response := PingResponse{
+	response := TcpPingResponse{
 		IP:        req.IP,
+		Port:      req.Port,
 		RequestId: req.RequestId,
 	}
 
@@ -991,138 +1007,52 @@ func (w *WebSocketReporter) handlePing(data interface{}) (PingResponse, error) {
 	return response, nil
 }
 
-// pingHost 执行ping操作，返回平均延迟和丢包率
-func pingHost(ip string, count int) (float64, float64, error) {
-	var cmd *exec.Cmd
+// tcpPingHost 执行TCP连接测试，返回平均连接时间和失败率
+func tcpPingHost(ip string, port int, count int, timeoutMs int) (float64, float64, error) {
+	var totalTime float64
+	var successCount int
+	
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	target := fmt.Sprintf("%s:%d", ip, port)
 
-	// 根据操作系统选择不同的ping命令
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("ping", "-n", strconv.Itoa(count), ip)
-	case "darwin", "linux":
-		cmd = exec.Command("ping", "-c", strconv.Itoa(count), ip)
-	default:
-		return 0, 0, fmt.Errorf("不支持的操作系统: %s", runtime.GOOS)
-	}
+	fmt.Printf("🔍 开始TCP ping测试: %s，次数: %d，超时: %dms\n", target, count, timeoutMs)
 
-	output, err := cmd.Output()
-	if err != nil {
-		return 0, 0, fmt.Errorf("ping命令执行失败: %v", err)
-	}
-
-	// 解析ping输出
-	return parsePingOutput(string(output), runtime.GOOS)
-}
-
-// parsePingOutput 解析ping命令输出，提取平均延迟和丢包率
-func parsePingOutput(output, osType string) (float64, float64, error) {
-	lines := strings.Split(output, "\n")
-
-	switch osType {
-	case "windows":
-		return parsePingOutputWindows(lines)
-	case "darwin", "linux":
-		return parsePingOutputUnix(lines)
-	default:
-		return 0, 0, fmt.Errorf("不支持的操作系统类型")
-	}
-}
-
-// parsePingOutputWindows 解析Windows系统的ping输出
-func parsePingOutputWindows(lines []string) (float64, float64, error) {
-	var avgTime float64
-	var packetLoss float64
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// 查找平均延迟 (例如: "最短 = 1ms，最长 = 2ms，平均 = 1ms")
-		if strings.Contains(line, "平均") && strings.Contains(line, "ms") {
-			parts := strings.Split(line, "平均 = ")
-			if len(parts) > 1 {
-				avgPart := strings.Split(parts[1], "ms")[0]
-				if avg, err := strconv.ParseFloat(avgPart, 64); err == nil {
-					avgTime = avg
-				}
-			}
+	for i := 0; i < count; i++ {
+		start := time.Now()
+		
+		// 创建带超时的TCP连接
+		conn, err := net.DialTimeout("tcp", target, timeout)
+		
+		elapsed := time.Since(start)
+		
+		if err != nil {
+			fmt.Printf("  第%d次连接失败: %v (%.2fms)\n", i+1, err, elapsed.Seconds()*1000)
+		} else {
+			fmt.Printf("  第%d次连接成功: %.2fms\n", i+1, elapsed.Seconds()*1000)
+			conn.Close()
+			totalTime += elapsed.Seconds() * 1000 // 转换为毫秒
+			successCount++
 		}
-
-		// 查找丢包率 (例如: "丢失 = 0 (0% 丢失)")
-		if strings.Contains(line, "丢失") && strings.Contains(line, "%") {
-			if strings.Contains(line, "(0%") {
-				packetLoss = 0
-			} else {
-				// 提取百分比
-				start := strings.Index(line, "(")
-				end := strings.Index(line, "%")
-				if start != -1 && end != -1 && start < end {
-					lossStr := line[start+1 : end]
-					if loss, err := strconv.ParseFloat(lossStr, 64); err == nil {
-						packetLoss = loss
-					}
-				}
-			}
+		
+		// 如果不是最后一次，等待一下再进行下次测试
+		if i < count-1 {
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
+
+	if successCount == 0 {
+		return 0, 100.0, fmt.Errorf("所有TCP连接尝试都失败")
+	}
+
+	avgTime := totalTime / float64(successCount)
+	packetLoss := float64(count-successCount) / float64(count) * 100
+
+	fmt.Printf("✅ TCP ping完成: 平均连接时间 %.2fms，失败率 %.1f%%\n", avgTime, packetLoss)
 
 	return avgTime, packetLoss, nil
 }
 
-// parsePingOutputUnix 解析Unix系统（Linux/macOS）的ping输出
-func parsePingOutputUnix(lines []string) (float64, float64, error) {
-	var avgTime float64
-	var packetLoss float64
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// 查找统计行 (例如: "4 packets transmitted, 4 received, 0% packet loss")
-		if strings.Contains(line, "packet loss") {
-			parts := strings.Split(line, "%")
-			if len(parts) > 0 {
-				// 查找百分比前的数字
-				lossStr := strings.Fields(parts[0])
-				if len(lossStr) > 0 {
-					if loss, err := strconv.ParseFloat(lossStr[len(lossStr)-1], 64); err == nil {
-						packetLoss = loss
-					}
-				}
-			}
-		}
-
-		// 查找往返时间统计 (例如: "round-trip min/avg/max/stddev = 0.123/0.456/0.789/0.012 ms")
-		if strings.Contains(line, "round-trip") && strings.Contains(line, "=") {
-			parts := strings.Split(line, "=")
-			if len(parts) > 1 {
-				times := strings.TrimSpace(parts[1])
-				times = strings.Split(times, " ")[0] // 去掉末尾的"ms"
-				timeValues := strings.Split(times, "/")
-				if len(timeValues) >= 2 {
-					if avg, err := strconv.ParseFloat(timeValues[1], 64); err == nil {
-						avgTime = avg
-					}
-				}
-			}
-		}
-
-		// macOS的格式可能不同，查找avg (例如: "min/avg/max/stddev = 0.123/0.456/0.789/0.012 ms")
-		if strings.Contains(line, "min/avg/max") && strings.Contains(line, "=") {
-			parts := strings.Split(line, "=")
-			if len(parts) > 1 {
-				times := strings.TrimSpace(parts[1])
-				times = strings.Split(times, " ")[0] // 去掉末尾的"ms"
-				timeValues := strings.Split(times, "/")
-				if len(timeValues) >= 2 {
-					if avg, err := strconv.ParseFloat(timeValues[1], 64); err == nil {
-						avgTime = avg
-					}
-				}
-			}
-		}
-	}
-
-	return avgTime, packetLoss, nil
-}
 
 // isValidHostname 验证主机名格式
 func isValidHostname(hostname string) bool {

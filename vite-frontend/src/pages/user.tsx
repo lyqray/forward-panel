@@ -126,7 +126,7 @@ export default function UserPage() {
     flow: 100,
     num: 10,
     expTime: null,
-    flowResetTime: 1
+    flowResetTime: 0
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
 
@@ -142,7 +142,7 @@ export default function UserPage() {
     flow: 100,
     num: 10,
     expTime: null,
-    flowResetTime: 1,
+    flowResetTime: 0,
     speedId: null
   });
   const [assignLoading, setAssignLoading] = useState(false);
@@ -253,7 +253,7 @@ export default function UserPage() {
       flow: 100,
       num: 10,
       expTime: null,
-      flowResetTime: 1
+      flowResetTime: 0
     });
     onUserModalOpen();
   };
@@ -269,7 +269,7 @@ export default function UserPage() {
       flow: user.flow,
       num: user.num,
       expTime: user.expTime ? new Date(user.expTime) : null,
-      flowResetTime: user.flowResetTime || 1
+      flowResetTime: user.flowResetTime ?? 0
     });
     onUserModalOpen();
   };
@@ -338,7 +338,7 @@ export default function UserPage() {
       flow: 100,
       num: 10,
       expTime: null,
-      flowResetTime: 1,
+      flowResetTime: 0,
       speedId: null
     });
     onTunnelModalOpen();
@@ -370,7 +370,7 @@ export default function UserPage() {
           flow: 100,
           num: 10,
           expTime: null,
-          flowResetTime: 1,
+          flowResetTime: 0,
           speedId: null
         });
         loadUserTunnels(currentUser.id);
@@ -592,7 +592,7 @@ export default function UserPage() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-default-600">重置日期</span>
-                        <span className="text-xs">每月{user.flowResetTime || 1}号</span>
+                        <span className="text-xs">{user.flowResetTime === 0 ? '不重置' : `每月${user.flowResetTime}号`}</span>
                       </div>
                       {user.expTime && (
                         <div className="flex justify-between text-sm">
@@ -716,11 +716,16 @@ export default function UserPage() {
                   setUserForm(prev => ({ ...prev, flowResetTime: Number(value) }));
                 }}
               >
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                    每月{day}号（0点重置）
+                <>
+                  <SelectItem key="0" textValue="不重置">
+                    不重置
                   </SelectItem>
-                ))}
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                      每月{day}号（0点重置）
+                    </SelectItem>
+                  ))}
+                </>
               </Select>
               <DatePicker
                 label="过期时间"
@@ -836,11 +841,16 @@ export default function UserPage() {
                         setTunnelForm(prev => ({ ...prev, flowResetTime: Number(value) }));
                       }}
                     >
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                        <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                          每月{day}号（0点重置）
+                      <>
+                        <SelectItem key="0" textValue="不重置">
+                          不重置
                         </SelectItem>
-                      ))}
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                          <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                            每月{day}号（0点重置）
+                          </SelectItem>
+                        ))}
+                      </>
                     </Select>
                     
                     <DatePicker
@@ -919,7 +929,7 @@ export default function UserPage() {
                             {userTunnel.speedLimitName || '不限速'}
                           </Chip>
                         </TableCell>
-                        <TableCell>每月{userTunnel.flowResetTime}号</TableCell>
+                        <TableCell>{userTunnel.flowResetTime === 0 ? '不重置' : `每月${userTunnel.flowResetTime}号`}</TableCell>
                         <TableCell>{formatDate(userTunnel.expTime)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1012,11 +1022,16 @@ export default function UserPage() {
                     setEditTunnelForm(prev => prev ? { ...prev, flowResetTime: Number(value) } : null);
                   }}
                 >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                      每月{day}号（0点重置）
+                  <>
+                    <SelectItem key="0" textValue="不重置">
+                      不重置
                     </SelectItem>
-                  ))}
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                        每月{day}号（0点重置）
+                      </SelectItem>
+                    ))}
+                  </>
                 </Select>
                 
                 <DatePicker

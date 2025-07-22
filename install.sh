@@ -121,6 +121,7 @@ install_gost() {
   # 询问是否有加速下载地址
   echo ""
   echo "📥 检查下载地址..."
+  echo "加速下载地址需提供完整的地址，浏览器打开就能直接下载的那种！！！！！"
   read -p "是否有加速下载地址？(留空使用默认地址): " custom_url
   if [[ -n "$custom_url" ]]; then
     DOWNLOAD_URL="$custom_url"

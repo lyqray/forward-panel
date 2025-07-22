@@ -74,6 +74,7 @@ interface DiagnosisResult {
     nodeName: string;
     nodeId: string;
     targetIp: string;
+    targetPort?: number;
     message?: string;
     averageTime?: number;
     packetLoss?: number;
@@ -1075,14 +1076,18 @@ export default function ForwardPage() {
                                   </div>
                                   <div className="text-small text-default-500 flex items-center gap-1">
                                     <span className="flex-shrink-0">目标地址:</span>
-                                    <code className="font-mono truncate min-w-0" title={result.targetIp}>{result.targetIp}</code>
+                                    <code className="font-mono truncate min-w-0" title={`${result.targetIp}${result.targetPort ? ':' + result.targetPort : ''}`}>
+                                      {result.targetIp}{result.targetPort ? ':' + result.targetPort : ''}
+                                    </code>
                                   </div>
                                 </div>
                               ) : (
                                 <div className="space-y-2">
                                   <div className="text-small text-default-500 flex items-center gap-1">
                                     <span className="flex-shrink-0">目标地址:</span>
-                                    <code className="font-mono truncate min-w-0" title={result.targetIp}>{result.targetIp}</code>
+                                    <code className="font-mono truncate min-w-0" title={`${result.targetIp}${result.targetPort ? ':' + result.targetPort : ''}`}>
+                                      {result.targetIp}{result.targetPort ? ':' + result.targetPort : ''}
+                                    </code>
                                   </div>
                                   <Alert
                                     color="danger"

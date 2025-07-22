@@ -643,16 +643,17 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
 
         // 3. 根据隧道类型执行不同的诊断策略
         if (tunnel.getType() == TUNNEL_TYPE_PORT_FORWARD) {
-            // 端口转发：只给入口节点发送诊断指令，ping谷歌DNS
-            DiagnosisResult inResult = performPingDiagnosisWithConnectionCheck(inNode, "www.google.com", "入口->外网");
+            // 端口转发：只给入口节点发送诊断指令，TCP ping谷歌443端口
+            DiagnosisResult inResult = performTcpPingDiagnosisWithConnectionCheck(inNode, "www.google.com", 443, "入口->外网");
             results.add(inResult);
         } else {
-            // 隧道转发：入口ping出口，出口ping谷歌DNS
-            DiagnosisResult inToOutResult = performPingDiagnosisWithConnectionCheck(inNode, outNode.getServerIp(), "入口->出口");
+            // 隧道转发：入口TCP ping出口，出口TCP ping谷歌443端口
+            int outNodePort = getOutNodeTcpPort(tunnel.getId());
+            DiagnosisResult inToOutResult = performTcpPingDiagnosisWithConnectionCheck(inNode, outNode.getServerIp(), outNodePort, "入口->出口");
             results.add(inToOutResult);
 
             // 先检查出口节点的真实连接状态，然后再进行诊断
-            DiagnosisResult outToExternalResult = performPingDiagnosisWithConnectionCheck(outNode, "www.google.com", "出口->外网");
+            DiagnosisResult outToExternalResult = performTcpPingDiagnosisWithConnectionCheck(outNode, "www.google.com", 443, "出口->外网");
             results.add(outToExternalResult);
         }
 
@@ -668,58 +669,78 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     }
 
     /**
-     * 执行ping诊断
+     * 获取出口节点的TCP端口
+     * 通过隧道ID查找转发服务的出口端口，如果没有则使用默认SSH端口22
      * 
-     * @param node 执行ping的节点
+     * @param tunnelId 隧道ID
+     * @return TCP端口号
+     */
+    private int getOutNodeTcpPort(Long tunnelId) {
+        List<Forward> forwards = forwardService.list(new QueryWrapper<Forward>().eq("tunnel_id", tunnelId));
+        if (!forwards.isEmpty()) {
+            return forwards.get(0).getOutPort();
+        }
+        // 如果没有转发服务，使用默认SSH端口22
+        return 22;
+    }
+
+    /**
+     * 执行TCP ping诊断
+     * 
+     * @param node 执行TCP ping的节点
      * @param targetIp 目标IP地址
+     * @param port 目标端口
      * @param description 诊断描述
      * @return 诊断结果
      */
-    private DiagnosisResult performPingDiagnosis(Node node, String targetIp, String description) {
+    private DiagnosisResult performTcpPingDiagnosis(Node node, String targetIp, int port, String description) {
         try {
-            // 构建ping请求数据
-            JSONObject pingData = new JSONObject();
-            pingData.put("ip", targetIp);
-            pingData.put("count", 4);
+            // 构建TCP ping请求数据
+            JSONObject tcpPingData = new JSONObject();
+            tcpPingData.put("ip", targetIp);
+            tcpPingData.put("port", port);
+            tcpPingData.put("count", 4);
+            tcpPingData.put("timeout", 5000); // 5秒超时
 
-            // 发送ping命令到节点
-            GostDto gostResult = WebSocketServer.send_msg(node.getId(), pingData, "Ping");
+            // 发送TCP ping命令到节点
+            GostDto gostResult = WebSocketServer.send_msg(node.getId(), tcpPingData, "TcpPing");
             
             DiagnosisResult result = new DiagnosisResult();
             result.setNodeId(node.getId());
             result.setNodeName(node.getName());
             result.setTargetIp(targetIp);
+            result.setTargetPort(port);
             result.setDescription(description);
             result.setTimestamp(System.currentTimeMillis());
 
             if (gostResult != null && "OK".equals(gostResult.getMsg())) {
-                // 尝试解析ping响应数据
+                // 尝试解析TCP ping响应数据
                 try {
                     if (gostResult.getData() != null) {
-                        JSONObject pingResponse = (JSONObject) gostResult.getData();
-                        boolean success = pingResponse.getBooleanValue("success");
+                        JSONObject tcpPingResponse = (JSONObject) gostResult.getData();
+                        boolean success = tcpPingResponse.getBooleanValue("success");
                         
                         result.setSuccess(success);
                         if (success) {
-                            result.setMessage("ping成功");
-                            result.setAverageTime(pingResponse.getDoubleValue("averageTime"));
-                            result.setPacketLoss(pingResponse.getDoubleValue("packetLoss"));
+                            result.setMessage("TCP连接成功");
+                            result.setAverageTime(tcpPingResponse.getDoubleValue("averageTime"));
+                            result.setPacketLoss(tcpPingResponse.getDoubleValue("packetLoss"));
                         } else {
-                            result.setMessage(pingResponse.getString("errorMessage"));
+                            result.setMessage(tcpPingResponse.getString("errorMessage"));
                             result.setAverageTime(-1.0);
                             result.setPacketLoss(100.0);
                         }
                     } else {
                         // 没有详细数据，使用默认值
                         result.setSuccess(true);
-                        result.setMessage("ping成功");
+                        result.setMessage("TCP连接成功");
                         result.setAverageTime(0.0);
                         result.setPacketLoss(0.0);
                     }
                 } catch (Exception e) {
-                    // 解析响应数据失败，但ping命令本身成功了
+                    // 解析响应数据失败，但TCP ping命令本身成功了
                     result.setSuccess(true);
-                    result.setMessage("ping成功，但无法解析详细数据");
+                    result.setMessage("TCP连接成功，但无法解析详细数据");
                     result.setAverageTime(0.0);
                     result.setPacketLoss(0.0);
                 }
@@ -736,6 +757,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
             result.setNodeId(node.getId());
             result.setNodeName(node.getName());
             result.setTargetIp(targetIp);
+            result.setTargetPort(port);
             result.setDescription(description);
             result.setSuccess(false);
             result.setMessage("诊断执行异常: " + e.getMessage());
@@ -747,23 +769,25 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
     }
 
     /**
-     * 执行ping诊断（带连接状态检查）
+     * 执行TCP ping诊断（带连接状态检查）
      * 
-     * @param node 执行ping的节点
+     * @param node 执行TCP ping的节点
      * @param targetIp 目标IP地址
+     * @param port 目标端口
      * @param description 诊断描述
      * @return 诊断结果
      */
-    private DiagnosisResult performPingDiagnosisWithConnectionCheck(Node node, String targetIp, String description) {
+    private DiagnosisResult performTcpPingDiagnosisWithConnectionCheck(Node node, String targetIp, int port, String description) {
         DiagnosisResult result = new DiagnosisResult();
         result.setNodeId(node.getId());
         result.setNodeName(node.getName());
         result.setTargetIp(targetIp);
+        result.setTargetPort(port);
         result.setDescription(description);
         result.setTimestamp(System.currentTimeMillis());
 
         try {
-            return performPingDiagnosis(node, targetIp, description);
+            return performTcpPingDiagnosis(node, targetIp, port, description);
         } catch (Exception e) {
             result.setSuccess(false);
             result.setMessage("连接检查异常: " + e.getMessage());
@@ -817,6 +841,7 @@ public class TunnelServiceImpl extends ServiceImpl<TunnelMapper, Tunnel> impleme
         private Long nodeId;
         private String nodeName;
         private String targetIp;
+        private Integer targetPort;
         private String description;
         private boolean success;
         private String message;
