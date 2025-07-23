@@ -67,7 +67,7 @@ type TcpPingRequest struct {
 	IP        string `json:"ip"`
 	Port      int    `json:"port"`
 	Count     int    `json:"count"`
-	Timeout   int    `json:"timeout"`  // 超时时间(毫秒)
+	Timeout   int    `json:"timeout"` // 超时时间(毫秒)
 	RequestId string `json:"requestId,omitempty"`
 }
 
@@ -1011,20 +1011,23 @@ func (w *WebSocketReporter) handleTcpPing(data interface{}) (TcpPingResponse, er
 func tcpPingHost(ip string, port int, count int, timeoutMs int) (float64, float64, error) {
 	var totalTime float64
 	var successCount int
-	
+
 	timeout := time.Duration(timeoutMs) * time.Millisecond
-	target := fmt.Sprintf("%s:%d", ip, port)
+
+	// 使用net.JoinHostPort来正确处理IPv4、IPv6和域名
+	// 它会自动为IPv6地址添加方括号
+	target := net.JoinHostPort(ip, fmt.Sprintf("%d", port))
 
 	fmt.Printf("🔍 开始TCP ping测试: %s，次数: %d，超时: %dms\n", target, count, timeoutMs)
 
 	for i := 0; i < count; i++ {
 		start := time.Now()
-		
+
 		// 创建带超时的TCP连接
 		conn, err := net.DialTimeout("tcp", target, timeout)
-		
+
 		elapsed := time.Since(start)
-		
+
 		if err != nil {
 			fmt.Printf("  第%d次连接失败: %v (%.2fms)\n", i+1, err, elapsed.Seconds()*1000)
 		} else {
@@ -1033,7 +1036,7 @@ func tcpPingHost(ip string, port int, count int, timeoutMs int) (float64, float6
 			totalTime += elapsed.Seconds() * 1000 // 转换为毫秒
 			successCount++
 		}
-		
+
 		// 如果不是最后一次，等待一下再进行下次测试
 		if i < count-1 {
 			time.Sleep(100 * time.Millisecond)
@@ -1051,8 +1054,6 @@ func tcpPingHost(ip string, port int, count int, timeoutMs int) (float64, float6
 
 	return avgTime, packetLoss, nil
 }
-
-
 
 // isValidHostname 验证主机名格式
 func isValidHostname(hostname string) bool {
