@@ -70,4 +70,10 @@ export const updateSpeedLimit = (data: any) => Network.post("/speed-limit/update
 export const deleteSpeedLimit = (id: number) => Network.post("/speed-limit/delete", { id });
 
 // 修改密码接口
-export const updatePassword = (data: any) => Network.post("/user/updatePassword", data); 
+export const updatePassword = (data: any) => Network.post("/user/updatePassword", data);
+
+// 网站配置相关接口
+export const getConfigs = () => Network.post("/config/list");
+export const getConfigByName = (name: string) => Network.post("/config/get", { name });
+export const updateConfigs = (configMap: Record<string, string>) => Network.post("/config/update", configMap);
+export const updateConfig = (name: string, value: string) => Network.post("/config/update-single", { name, value }); 

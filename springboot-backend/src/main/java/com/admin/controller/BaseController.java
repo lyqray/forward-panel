@@ -20,4 +20,6 @@ public class BaseController {
     @Autowired
     ForwardService forwardService;
 
+    @Autowired
+    ViteConfigService viteConfigService;
 }

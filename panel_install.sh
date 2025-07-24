@@ -754,6 +754,23 @@ UPDATE \`forward\`
 SET \`strategy\` = 'fifo'
 WHERE \`strategy\` IS NULL;
 
+-- 创建 vite_config 表（如果不存在）
+CREATE TABLE IF NOT EXISTS \`vite_config\` (
+  \`id\` int(10) NOT NULL AUTO_INCREMENT,
+  \`name\` varchar(200) NOT NULL,
+  \`value\` varchar(200) NOT NULL,
+  \`time\` bigint(20) NOT NULL,
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`unique_name\` (\`name\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 插入默认应用名称配置（如果不存在）
+INSERT INTO \`vite_config\` (\`name\`, \`value\`, \`time\`) 
+SELECT 'app_name', '哆啦A梦', 1753344708000
+WHERE NOT EXISTS (
+  SELECT 1 FROM \`vite_config\` WHERE \`name\` = 'app_name'
+);
+
 
 EOF
   

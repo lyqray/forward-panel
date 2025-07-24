@@ -698,14 +698,24 @@ export default function UserPage() {
                 label="流量限制(GB)"
                 type="number"
                 value={userForm.flow.toString()}
-                onChange={(e) => setUserForm(prev => ({ ...prev, flow: Number(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                  setUserForm(prev => ({ ...prev, flow: value }));
+                }}
+                min="1"
+                max="99999"
                 isRequired
               />
               <Input
                 label="转发数量"
                 type="number"
                 value={userForm.num.toString()}
-                onChange={(e) => setUserForm(prev => ({ ...prev, num: Number(e.target.value) || 0 }))}
+                onChange={(e) => {
+                  const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                  setUserForm(prev => ({ ...prev, num: value }));
+                }}
+                min="1"
+                max="99999"
                 isRequired
               />
               <Select
@@ -720,11 +730,11 @@ export default function UserPage() {
                   <SelectItem key="0" textValue="不重置">
                     不重置
                   </SelectItem>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                      每月{day}号（0点重置）
-                    </SelectItem>
-                  ))}
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                  <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                    每月{day}号（0点重置）
+                  </SelectItem>
+                ))}
                 </>
               </Select>
               <DatePicker
@@ -823,14 +833,24 @@ export default function UserPage() {
                       label="流量限制(GB)"
                       type="number"
                       value={tunnelForm.flow.toString()}
-                      onChange={(e) => setTunnelForm(prev => ({ ...prev, flow: Number(e.target.value) || 0 }))}
+                      onChange={(e) => {
+                        const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                        setTunnelForm(prev => ({ ...prev, flow: value }));
+                      }}
+                      min="1"
+                      max="99999"
                     />
                     
                     <Input
                       label="转发数量"
                       type="number"
                       value={tunnelForm.num.toString()}
-                      onChange={(e) => setTunnelForm(prev => ({ ...prev, num: Number(e.target.value) || 0 }))}
+                      onChange={(e) => {
+                        const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                        setTunnelForm(prev => ({ ...prev, num: value }));
+                      }}
+                      min="1"
+                      max="99999"
                     />
                     
                     <Select
@@ -845,11 +865,11 @@ export default function UserPage() {
                         <SelectItem key="0" textValue="不重置">
                           不重置
                         </SelectItem>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                          <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                            每月{day}号（0点重置）
-                          </SelectItem>
-                        ))}
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                          每月{day}号（0点重置）
+                        </SelectItem>
+                      ))}
                       </>
                     </Select>
                     
@@ -986,14 +1006,24 @@ export default function UserPage() {
                   label="流量限制(GB)"
                   type="number"
                   value={editTunnelForm.flow.toString()}
-                  onChange={(e) => setEditTunnelForm(prev => prev ? { ...prev, flow: Number(e.target.value) || 0 } : null)}
+                  onChange={(e) => {
+                    const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                    setEditTunnelForm(prev => prev ? { ...prev, flow: value } : null);
+                  }}
+                  min="1"
+                  max="99999"
                 />
                 
                 <Input
                   label="转发数量"
                   type="number"
                   value={editTunnelForm.num.toString()}
-                  onChange={(e) => setEditTunnelForm(prev => prev ? { ...prev, num: Number(e.target.value) || 0 } : null)}
+                  onChange={(e) => {
+                    const value = Math.min(Math.max(Number(e.target.value) || 0, 1), 99999);
+                    setEditTunnelForm(prev => prev ? { ...prev, num: value } : null);
+                  }}
+                  min="1"
+                  max="99999"
                 />
                 
                 <Select
@@ -1026,11 +1056,11 @@ export default function UserPage() {
                     <SelectItem key="0" textValue="不重置">
                       不重置
                     </SelectItem>
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                      <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
-                        每月{day}号（0点重置）
-                      </SelectItem>
-                    ))}
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <SelectItem key={day.toString()} textValue={`每月${day}号（0点重置）`}>
+                      每月{day}号（0点重置）
+                    </SelectItem>
+                  ))}
                   </>
                 </Select>
                 

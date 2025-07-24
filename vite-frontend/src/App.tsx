@@ -9,8 +9,10 @@ import TunnelPage from "@/pages/tunnel";
 import NodePage from "@/pages/node";
 import UserPage from "@/pages/user";
 import LimitPage from "@/pages/limit";
+import ConfigPage from "@/pages/config";
 
 import { isLoggedIn } from "@/utils/auth";
+import { siteConfig } from "@/config/site";
 
 // 简化的路由保护组件 - 使用浏览器重定向避免React循环
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -33,6 +35,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   return <>{children}</>;
 };
+
 
 // 登录页面路由组件 - 已登录则重定向到dashboard
 const LoginRoute = () => {
@@ -57,6 +60,30 @@ const LoginRoute = () => {
 };
 
 function App() {
+  // 立即设置页面标题（使用已从缓存读取的配置）
+  useEffect(() => {
+    document.title = siteConfig.name;
+    
+    // 异步检查是否有配置更新
+    const checkTitleUpdate = async () => {
+      try {
+        // 引入必要的函数
+        const { getCachedConfig } = await import('@/config/site');
+        const cachedAppName = await getCachedConfig('app_name');
+        if (cachedAppName && cachedAppName !== document.title) {
+          document.title = cachedAppName;
+        }
+      } catch (error) {
+        console.warn('检查标题更新失败:', error);
+      }
+    };
+
+    // 延迟检查，避免阻塞初始渲染
+    const timer = setTimeout(checkTitleUpdate, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<LoginRoute />} />
@@ -113,6 +140,14 @@ function App() {
         element={
           <ProtectedRoute>
             <LimitPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/config" 
+        element={
+          <ProtectedRoute>
+            <ConfigPage />
           </ProtectedRoute>
         } 
       />

@@ -10,6 +10,7 @@ import { Logo } from '@/components/icons';
 import { ThemeSwitch } from '@/components/theme-switch';
 import { updatePassword } from '@/api';
 import { safeLogout } from '@/utils/logout';
+import { siteConfig } from '@/config/site';
 
 interface MenuItem {
   path: string;
@@ -102,6 +103,16 @@ export default function AdminLayout({
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+        </svg>
+      ),
+      adminOnly: true
+    },
+    {
+      path: '/config',
+      label: '网站配置',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
         </svg>
       ),
       adminOnly: true
@@ -245,7 +256,7 @@ export default function AdminLayout({
       <aside className={`
         ${isMobile ? 'fixed' : 'relative'} 
         ${isMobile && !mobileMenuVisible ? '-translate-x-full' : 'translate-x-0'}
-        ${isMobile ? 'w-64' : 'w-64'} 
+        ${isMobile ? 'w-64' : 'w-72'} 
         bg-white dark:bg-black 
         shadow-lg 
         border-r border-gray-200 dark:border-gray-600
@@ -255,12 +266,12 @@ export default function AdminLayout({
         h-full
       `}>
                  {/* Logo 区域 */}
-         <div className="px-4 py-3 h-14 flex items-center">
-           <div className="flex items-center gap-3">
-             <Logo size={28} />
-             <div>
-               <h1 className="text-base font-bold text-foreground">哆啦A梦</h1>
-               <p className="text-xs text-default-500">v1.0.8</p>
+         <div className="px-3 py-3 h-14 flex items-center">
+           <div className="flex items-center gap-2 w-full">
+             <Logo size={24} />
+             <div className="flex-1 min-w-0">
+               <h1 className="text-sm font-bold text-foreground overflow-hidden whitespace-nowrap">{siteConfig.name}</h1>
+               <p className="text-xs text-default-500">v{siteConfig.version}</p>
              </div>
            </div>
          </div>
@@ -293,6 +304,23 @@ export default function AdminLayout({
             })}
           </ul>
         </nav>
+
+                {/* 底部版权信息 */}
+        <div className="px-4 py-2 pb-4 mt-auto">
+          <div className="text-center">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Powered by{' '}
+              <a 
+                href="https://github.com/bqlpfy/forward-panel" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                哆啦A梦
+              </a>
+            </p>
+          </div>
+        </div>
       </aside>
 
       {/* 主内容区域 */}

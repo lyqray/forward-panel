@@ -154,9 +154,20 @@ CREATE TABLE `user_tunnel` (
   `status` int(10) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- 转储表的索引
---
+CREATE TABLE `vite_config` (
+  `id` int(10) NOT NULL,
+  `name` varchar(200) NOT NULL,
+  `value` varchar(200) NOT NULL,
+  `time` bigint(20) NOT NULL,
+  UNIQUE KEY `unique_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `vite_config` (`id`, `name`, `value`, `time`) VALUES
+(1, 'app_name', '哆啦A梦', 1753344708000);
+
+ALTER TABLE `vite_config`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_name` (`name`);
 
 --
 -- 表的索引 `forward`
@@ -202,37 +213,42 @@ ALTER TABLE `user_tunnel`
 -- 使用表AUTO_INCREMENT `forward`
 --
 ALTER TABLE `forward`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=164;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- 使用表AUTO_INCREMENT `node`
 --
 ALTER TABLE `node`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- 使用表AUTO_INCREMENT `speed_limit`
 --
 ALTER TABLE `speed_limit`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=70;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- 使用表AUTO_INCREMENT `tunnel`
 --
 ALTER TABLE `tunnel`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- 使用表AUTO_INCREMENT `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- 使用表AUTO_INCREMENT `user_tunnel`
 --
 ALTER TABLE `user_tunnel`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+COMMIT;
+
+
+ALTER TABLE `vite_config`
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -108,8 +108,8 @@ export default function IndexPage() {
 
   return (
     <DefaultLayout>
-      <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 min-h-[calc(100vh-200px)]">
-        <div className="w-full max-w-md">
+      <section className="flex flex-col items-center justify-center gap-4 py-4 sm:py-8 md:py-10 min-h-[calc(100vh-120px)] sm:min-h-[calc(100vh-200px)]">
+        <div className="w-full max-w-md px-4 sm:px-0">
           <Card className="w-full">
             <CardHeader className="pb-0 pt-6 px-6 flex-col items-center">
               <h1 className={title({ size: "sm" })}>登陆</h1>
