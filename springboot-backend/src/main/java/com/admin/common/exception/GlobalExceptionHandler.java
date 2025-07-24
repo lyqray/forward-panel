@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = Exception.class)
     public R Exception(Exception e){
         log.error("异常：----------------{}", e.getMessage());
-        return R.err(-2, "异常错误");
+        return R.err(-2, e.getMessage());
     }
 
 }

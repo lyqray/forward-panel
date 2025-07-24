@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： localhost
--- 生成日期： 2025-07-02 11:33:42
+-- 生成日期： 2025-07-24 21:52:45
 -- 服务器版本： 5.7.40-log
 -- PHP 版本： 7.4.33
 
@@ -35,7 +35,7 @@ CREATE TABLE `forward` (
   `tunnel_id` int(10) NOT NULL,
   `in_port` int(10) NOT NULL,
   `out_port` int(10) DEFAULT NULL,
-  `remote_addr` longtext,
+  `remote_addr` longtext NOT NULL,
   `strategy` varchar(100) NOT NULL DEFAULT 'fifo',
   `in_flow` bigint(20) NOT NULL DEFAULT '0',
   `out_flow` bigint(20) NOT NULL DEFAULT '0',
@@ -132,7 +132,7 @@ CREATE TABLE `user` (
 --
 
 INSERT INTO `user` (`id`, `user`, `pwd`, `role_id`, `exp_time`, `flow`, `in_flow`, `out_flow`, `flow_reset_time`, `num`, `created_time`, `updated_time`, `status`) VALUES
-(1, 'admin_user', '3c85cdebade1c51cf64ca9f3c09d182d', 0, 1780480500000, 99999, 0, 0, 1, 99999, 1748914865000, 1751113171541, 1);
+(1, 'admin_user', '3c85cdebade1c51cf64ca9f3c09d182d', 0, 1780480500000, 99999, 0, 0, 1, 99999, 1748914865000, 1751434735216, 1);
 
 -- --------------------------------------------------------
 
@@ -154,20 +154,29 @@ CREATE TABLE `user_tunnel` (
   `status` int(10) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- --------------------------------------------------------
+
+--
+-- 表的结构 `vite_config`
+--
+
 CREATE TABLE `vite_config` (
   `id` int(10) NOT NULL,
   `name` varchar(200) NOT NULL,
   `value` varchar(200) NOT NULL,
-  `time` bigint(20) NOT NULL,
-  UNIQUE KEY `unique_name` (`name`)
+  `time` bigint(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `vite_config` (`id`, `name`, `value`, `time`) VALUES
-(1, 'app_name', '哆啦A梦', 1753344708000);
+--
+-- 转存表中的数据 `vite_config`
+--
 
-ALTER TABLE `vite_config`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `unique_name` (`name`);
+INSERT INTO `vite_config` (`id`, `name`, `value`, `time`) VALUES
+(1, 'app_name', '哆啦A梦', 1753346853111);
+
+--
+-- 转储表的索引
+--
 
 --
 -- 表的索引 `forward`
@@ -206,6 +215,13 @@ ALTER TABLE `user_tunnel`
   ADD PRIMARY KEY (`id`);
 
 --
+-- 表的索引 `vite_config`
+--
+ALTER TABLE `vite_config`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `name` (`name`);
+
+--
 -- 在导出的表使用AUTO_INCREMENT
 --
 
@@ -213,40 +229,41 @@ ALTER TABLE `user_tunnel`
 -- 使用表AUTO_INCREMENT `forward`
 --
 ALTER TABLE `forward`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- 使用表AUTO_INCREMENT `node`
 --
 ALTER TABLE `node`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- 使用表AUTO_INCREMENT `speed_limit`
 --
 ALTER TABLE `speed_limit`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- 使用表AUTO_INCREMENT `tunnel`
 --
 ALTER TABLE `tunnel`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- 使用表AUTO_INCREMENT `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- 使用表AUTO_INCREMENT `user_tunnel`
 --
 ALTER TABLE `user_tunnel`
-  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT;
-COMMIT;
+  MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
-
+--
+-- 使用表AUTO_INCREMENT `vite_config`
+--
 ALTER TABLE `vite_config`
   MODIFY `id` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
