@@ -83,6 +83,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private static final String ERROR_USERNAME_EXISTS = "用户名已存在";
     private static final String ERROR_USERNAME_TAKEN = "用户名已被其他用户使用";
     private static final String ERROR_CANNOT_DELETE_ADMIN = "不能删除管理员用户";
+    private static final String ERROR_CANNOT_UPDATE_ADMIN = "不能修改管理员用户信息";
     private static final String ERROR_USER_NOT_LOGGED_IN = "用户未登录或token无效";
     private static final String ERROR_GET_PACKAGE_INFO_FAILED = "获取套餐信息失败";
     private static final String ERROR_CURRENT_PASSWORD_WRONG = "当前密码错误";
@@ -225,14 +226,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return usernameValidationResult;
         }
 
+        // 3. 验证更新条件
+        R updateValidationResult = validateUserUpdate(userUpdateDto.getId());
+        if (updateValidationResult.getCode() != 0) {
+            return updateValidationResult;
+        }
 
         // 4. 构建更新实体并保存
-        User user = buildUpdateUserEntity(userUpdateDto);
-        boolean result = this.updateById(user);
+        User updateUser = buildUpdateUserEntity(userUpdateDto);
+        boolean result = this.updateById(updateUser);
         
         if (result) {
             // 5. 处理到期时间延时任务
-            handleUserExpirationTaskUpdate(user);
+            handleUserExpirationTaskUpdate(updateUser);
             return R.ok(SUCCESS_UPDATE_MSG);
         } else {
             return R.err(ERROR_UPDATE_FAILED);
@@ -509,6 +515,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         if (user.getRoleId() == ADMIN_ROLE_ID) {
             return R.err(ERROR_CANNOT_DELETE_ADMIN);
+        }
+
+        return R.ok();
+    }
+
+    /**
+     * 验证用户更新条件
+     * 
+     * @param userId 用户ID
+     * @return 验证结果响应
+     */
+    private R validateUserUpdate(Long userId) {
+        User user = this.getById(userId);
+        if (user == null) {
+            return R.err(ERROR_USER_NOT_FOUND);
+        }
+
+        if (user.getRoleId() == ADMIN_ROLE_ID) {
+            return R.err(ERROR_CANNOT_UPDATE_ADMIN);
         }
 
         return R.ok();

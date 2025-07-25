@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@heroui/accordion": "^2.2.20",
     "@heroui/alert": "^2.2.22",
     "@heroui/avatar": "^2.2.18",
     "@heroui/button": "2.2.22",
