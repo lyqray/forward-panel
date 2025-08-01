@@ -33,7 +33,7 @@ services:
       PMA_HOST: mysql           # 这里写 MySQL 服务名
       PMA_PORT: 3306
       PMA_ARBITRARY: 1          # 允许手动输入服务器
-      # PMA_ABSOLUTE_URI: https://example.com/phpmyadmin/
+      # PMA_ABSOLUTE_URI: https://example.com/pma/
       # 如果使用Nginx反代域名访问，请取消上一行的注释，并设置对应的域名及路径
     ports:
       - "8066:80"               # phpMyAdmin 对外暴露 http://localhost:8066
