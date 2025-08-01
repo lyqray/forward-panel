@@ -1,6 +1,6 @@
 #!/bin/bash
 # 下载地址
-DOWNLOAD_URL="https://raw.githubusercontent.com/bqlpfy/forward-panel/refs/heads/main/go-gost/gost"
+DOWNLOAD_URL="https://raw.githubusercontent.com/lyqray/forward-panel/refs/heads/mybak/go-gost/gost"
 INSTALL_DIR="/etc/gost"
 
 # 显示菜单
