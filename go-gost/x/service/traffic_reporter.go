@@ -22,7 +22,6 @@ var httpAESCrypto *crypto.AESCrypto // 新增：HTTP上报加密器
 // TrafficReportItem 流量报告项（压缩格式）
 type TrafficReportItem struct {
 	N string `json:"n"` // 服务名（name缩写）
-	T string `json:"t"` // 连接类型：conn, cc（type缩写）
 	U int64  `json:"u"` // 上行流量（up缩写）
 	D int64  `json:"d"` // 下行流量（down缩写）
 }
@@ -30,7 +29,7 @@ type TrafficReportItem struct {
 func SetHTTPReportURL(addr string, secret string) {
 	httpReportURL = "http://" + addr + "/flow/upload?secret=" + secret
 	configReportURL = "http://" + addr + "/flow/config?secret=" + secret
-	
+
 	// 创建 AES 加密器
 	var err error
 	httpAESCrypto, err = crypto.NewAESCrypto(secret)
@@ -43,7 +42,7 @@ func SetHTTPReportURL(addr string, secret string) {
 }
 
 // sendTrafficReport 发送流量报告到HTTP接口
-func sendTrafficReport(ctx context.Context, reportItems []TrafficReportItem) (bool, error) {
+func sendTrafficReport(ctx context.Context, reportItems TrafficReportItem) (bool, error) {
 	jsonData, err := json.Marshal(reportItems)
 	if err != nil {
 		return false, fmt.Errorf("序列化报告数据失败: %v", err)

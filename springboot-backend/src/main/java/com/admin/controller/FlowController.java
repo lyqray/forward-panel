@@ -51,8 +51,6 @@ public class FlowController extends BaseController {
     // 常量定义
     private static final String SUCCESS_RESPONSE = "ok";
     private static final String DEFAULT_USER_TUNNEL_ID = "0";
-    private static final int FLOW_TYPE_UPLOAD_ONLY = 1;
-    private static final int FLOW_TYPE_BIDIRECTIONAL = 2;
     private static final long BYTES_TO_GB = 1024L * 1024L * 1024L;
 
     // 用于同步相同用户和隧道的流量更新操作
@@ -132,12 +130,9 @@ public class FlowController extends BaseController {
             String decryptedData = decryptIfNeeded(rawData, secret);
             
             // 3. 解析为FlowDto列表
-            List<FlowDto> flowDataList = JSON.parseArray(decryptedData, FlowDto.class);
+            FlowDto flowDataList = JSONObject.parseObject(decryptedData, FlowDto.class);
             
-            if (flowDataList.isEmpty()) {
-                return SUCCESS_RESPONSE;
-            }
-            if (Objects.equals(flowDataList.get(0).getN(), "web_api")) {
+            if (Objects.equals(flowDataList.getN(), "web_api")) {
                 return SUCCESS_RESPONSE;
             }
 
@@ -209,9 +204,9 @@ public class FlowController extends BaseController {
     /**
      * 处理流量数据的核心逻辑
      */
-    private String processFlowData(List<FlowDto> flowDataList) {
+    private String processFlowData(FlowDto flowDataList) {
         // 2. 解析服务名称获取ID信息
-        String[] serviceIds = parseServiceName(flowDataList.get(0).getN());
+        String[] serviceIds = parseServiceName(flowDataList.getN());
         String forwardId = serviceIds[0];
         String userId = serviceIds[1];
         String userTunnelId = serviceIds[2];
@@ -223,44 +218,42 @@ public class FlowController extends BaseController {
         if (!Objects.equals(userTunnelId, DEFAULT_USER_TUNNEL_ID)) {
             userTunnel = userTunnelService.getById(userTunnelId);
         }
-        
-        // 4. 处理流量倍率
-        List<FlowDto> validFlowData = filterFlowData(flowDataList, forward);
 
-        // 5. 计算总流量
-        FlowStatistics flowStats = calculateTotalFlow(validFlowData);
 
-        // 6. 获取流量计费类型
+        // 4. 获取流量计费类型
         int flowType = getFlowType(forward);
+        
+        // 5. 处理流量倍率及单双向计算
+        FlowDto flowStats = filterFlowData(flowDataList, forward, flowType);
 
-        // 7. 先更新所有流量统计 - 确保流量数据的一致性
-        // 7.1 更新转发流量
+        // 6. 先更新所有流量统计 - 确保流量数据的一致性
+        // 6.1 更新转发流量
         if (forward != null) {
             updateForwardFlow(forwardId, flowStats);
         }
 
-        // 7.2 更新用户流量
+        // 6.2 更新用户流量
         if (user != null) {
-            updateUserFlow(userId, flowStats, flowType);
+            updateUserFlow(userId, flowStats);
         }
 
-        // 7.3 更新隧道权限流量
+        // 6.3 更新隧道权限流量
         if (userTunnel != null) {
             updateUserTunnelFlow(userTunnelId, flowStats);
         }
 
-        // 8. 流量更新完成后，再进行各种检查和服务暂停操作
-        // 8.1 用户相关检查
+        // 7. 流量更新完成后，再进行各种检查和服务暂停操作
+        // 7.1 用户相关检查
         if (user != null) {
             checkUserRelatedLimits(user, userTunnelId);
         }
 
-        // 8.2 隧道权限相关检查
+        // 7.2 隧道权限相关检查
         if (userTunnel != null) {
-            checkUserTunnelRelatedLimits(userTunnel, forwardId, userId, userTunnelId, forward, flowType);
+            checkUserTunnelRelatedLimits(userTunnel, forwardId, userId, userTunnelId, forward);
         }
 
-        // 8.3 转发状态检查
+        // 7.3 转发状态检查
         if (forward != null) {
             checkForwardStatus(forward, userId, userTunnelId);
         }
@@ -270,24 +263,34 @@ public class FlowController extends BaseController {
 
 
 
-    private List<FlowDto> filterFlowData(List<FlowDto> flowDataList, Forward forward) {
+    private FlowDto filterFlowData(FlowDto flowDto, Forward forward, int flowType) {
+        // 判断 forward 是否不为空，避免空指针异常
         if (forward != null) {
+            // 根据 forward 中的隧道ID查询隧道对象
             Tunnel tunnel = tunnelService.getById(forward.getTunnelId());
+            // 如果隧道对象存在，继续处理
             if (tunnel != null){
+                // 获取隧道的流量倍率 trafficRatio
                 BigDecimal trafficRatio = tunnel.getTrafficRatio();
-                for (FlowDto flowDto : flowDataList) {
-                    BigDecimal originalD = BigDecimal.valueOf(flowDto.getD());
-                    BigDecimal originalU = BigDecimal.valueOf(flowDto.getU());
 
-                    BigDecimal newD = originalD.multiply(trafficRatio);
-                    BigDecimal newU = originalU.multiply(trafficRatio);
+                // 把 flowDto 中的下载流量 D 转换为 BigDecimal 类型
+                BigDecimal originalD = BigDecimal.valueOf(flowDto.getD());
+                // 把 flowDto 中的上传流量 U 转换为 BigDecimal 类型
+                BigDecimal originalU = BigDecimal.valueOf(flowDto.getU());
 
-                    flowDto.setD(newD.longValue());
-                    flowDto.setU(newU.longValue());
-                }
+                // 下载流量乘以流量倍率，得到新的下载流量
+                BigDecimal newD = originalD.multiply(trafficRatio);
+                // 上传流量乘以流量倍率，得到新的上传流量
+                BigDecimal newU = originalU.multiply(trafficRatio);
+
+                // 将计算后的下载流量转换回 long 类型并设置回 flowDto
+                flowDto.setD(newD.longValue() * flowType);
+                // 将计算后的上传流量转换回 long 类型并设置回 flowDto
+                flowDto.setU(newU.longValue() * flowType);
             }
         }
-        return flowDataList;
+        // 返回处理后的流量数据对象
+        return flowDto;
     }
 
     /**
@@ -306,26 +309,12 @@ public class FlowController extends BaseController {
         return serviceName.split("_");
     }
 
-    /**
-     * 计算总流量统计
-     */
-    private FlowStatistics calculateTotalFlow(List<FlowDto> validFlowData) {
-        long totalUpload = 0L;
-        long totalDownload = 0L;
-
-        for (FlowDto flow : validFlowData) {
-            totalUpload += flow.getU();
-            totalDownload += flow.getD();
-        }
-
-        return new FlowStatistics(totalUpload, totalDownload);
-    }
 
     /**
      * 获取流量计费类型 - 优化版本，使用传入的Forward实体
      */
     private int getFlowType(Forward forward) {
-        int defaultFlowType = FLOW_TYPE_BIDIRECTIONAL;
+        int defaultFlowType = 2;
 
         if (forward != null) {
             Tunnel tunnel = tunnelService.getById(forward.getTunnelId());
@@ -340,13 +329,13 @@ public class FlowController extends BaseController {
     /**
      * 更新转发流量统计 - 使用原子操作避免并发问题
      */
-    private boolean updateForwardFlow(String forwardId, FlowStatistics flowStats) {
+    private boolean updateForwardFlow(String forwardId, FlowDto flowStats) {
         // 对相同转发的流量更新进行同步，避免并发覆盖
         synchronized (getForwardLock(forwardId)) {
             UpdateWrapper<Forward> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("id", forwardId);
-            updateWrapper.setSql("in_flow = in_flow + " + flowStats.getDownload());
-            updateWrapper.setSql("out_flow = out_flow + " + flowStats.getUpload());
+            updateWrapper.setSql("in_flow = in_flow + " + flowStats.getD());
+            updateWrapper.setSql("out_flow = out_flow + " + flowStats.getU());
 
             return forwardService.update(null, updateWrapper);
         }
@@ -355,21 +344,14 @@ public class FlowController extends BaseController {
     /**
      * 更新用户流量统计 - 使用原子操作避免并发问题
      */
-    private boolean updateUserFlow(String userId, FlowStatistics flowStats, int flowType) {
+    private boolean updateUserFlow(String userId, FlowDto flowStats) {
         // 对相同用户的流量更新进行同步，避免并发覆盖
         synchronized (getUserLock(userId)) {
             UpdateWrapper<User> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("id", userId);
 
-            // 使用SQL的原子更新操作，避免读取-修改-写入的并发问题
-            if (flowType == FLOW_TYPE_BIDIRECTIONAL) {
-                // 双向计费：同时更新上传和下载流量
-                updateWrapper.setSql("in_flow = in_flow + " + flowStats.getDownload());
-                updateWrapper.setSql("out_flow = out_flow + " + flowStats.getUpload());
-            } else {
-                // 仅上传计费：只更新上传流量
-                updateWrapper.setSql("out_flow = out_flow + " + flowStats.getUpload());
-            }
+            updateWrapper.setSql("in_flow = in_flow + " + flowStats.getD());
+            updateWrapper.setSql("out_flow = out_flow + " + flowStats.getU());
 
             return userService.update(null, updateWrapper);
         }
@@ -378,7 +360,7 @@ public class FlowController extends BaseController {
     /**
      * 更新用户隧道流量统计 - 优化版本，仅负责流量更新
      */
-    private boolean updateUserTunnelFlow(String userTunnelId, FlowStatistics flowStats) {
+    private boolean updateUserTunnelFlow(String userTunnelId, FlowDto flowStats) {
         if (Objects.equals(userTunnelId, DEFAULT_USER_TUNNEL_ID)) {
             return true; // 默认隧道不需要更新，返回成功
         }
@@ -387,8 +369,8 @@ public class FlowController extends BaseController {
         synchronized (getTunnelLock(userTunnelId)) {
             UpdateWrapper<UserTunnel> updateWrapper = new UpdateWrapper<>();
             updateWrapper.eq("id", userTunnelId);
-            updateWrapper.setSql("in_flow = in_flow + " + flowStats.getDownload());
-            updateWrapper.setSql("out_flow = out_flow + " + flowStats.getUpload());
+            updateWrapper.setSql("in_flow = in_flow + " + flowStats.getD());
+            updateWrapper.setSql("out_flow = out_flow + " + flowStats.getU());
 
             return userTunnelService.update(null, updateWrapper);
         }
@@ -397,11 +379,8 @@ public class FlowController extends BaseController {
     /**
      * 检查用户隧道流量限制 - 优化版本，使用传入的UserTunnel实体
      */
-    private void checkUserTunnelFlowLimit(UserTunnel userTunnel, int flowType,
-                                          String forwardId, String userId, String userTunnelId) {
-        long currentFlow = (flowType == FLOW_TYPE_UPLOAD_ONLY) ?
-                userTunnel.getOutFlow() :
-                userTunnel.getInFlow() + userTunnel.getOutFlow();
+    private void checkUserTunnelFlowLimit(UserTunnel userTunnel, String forwardId, String userId, String userTunnelId) {
+        long currentFlow = userTunnel.getInFlow() + userTunnel.getOutFlow();
 
         long flowLimit = userTunnel.getFlow() * BYTES_TO_GB;
 
@@ -513,7 +492,7 @@ public class FlowController extends BaseController {
     /**
      * 检查用户隧道权限相关的所有限制 - 隧道权限存在时统一处理
      */
-    private void checkUserTunnelRelatedLimits(UserTunnel userTunnel, String forwardId, String userId, String userTunnelId, Forward forward, int flowType) {
+    private void checkUserTunnelRelatedLimits(UserTunnel userTunnel, String forwardId, String userId, String userTunnelId, Forward forward) {
         // 重新查询用户隧道权限以获取最新的流量数据
         UserTunnel updatedUserTunnel = userTunnelService.getById(userTunnel.getId());
         if (updatedUserTunnel == null) {
@@ -521,7 +500,7 @@ public class FlowController extends BaseController {
         }
 
         // 检查隧道权限流量限制
-        checkUserTunnelFlowLimit(updatedUserTunnel, flowType, forwardId, userId, userTunnelId);
+        checkUserTunnelFlowLimit(updatedUserTunnel, forwardId, userId, userTunnelId);
 
         // 检查隧道权限到期时间
         if (updatedUserTunnel.getExpTime() != null && updatedUserTunnel.getExpTime() <= System.currentTimeMillis()) {

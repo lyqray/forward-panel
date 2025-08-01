@@ -46,7 +46,7 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
     private static final int FORWARD_STATUS_PAUSED = 0;
     private static final int FORWARD_STATUS_ERROR = -1;
     private static final int TUNNEL_STATUS_ACTIVE = 1;
-    private static final int FLOW_TYPE_UPLOAD_ONLY = 1;
+
     private static final long BYTES_TO_GB = 1024L * 1024L * 1024L;
 
     @Resource
@@ -753,9 +753,8 @@ public class ForwardServiceImpl extends ServiceImpl<ForwardMapper, Forward> impl
         }
 
         // 检查隧道流量限制
-        long tunnelFlow = (tunnel.getFlow() == FLOW_TYPE_UPLOAD_ONLY) ? 
-                         userTunnel.getOutFlow() : 
-                         userTunnel.getInFlow() + userTunnel.getOutFlow();
+        // 数据库中的流量已按计费类型处理，直接使用总和
+        long tunnelFlow = userTunnel.getInFlow() + userTunnel.getOutFlow();
         
         if (userTunnel.getFlow() * BYTES_TO_GB <= tunnelFlow) {
             return R.err("该隧道流量已用完，无法恢复服务");

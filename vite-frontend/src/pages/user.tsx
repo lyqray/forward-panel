@@ -98,11 +98,8 @@ const calculateTunnelUsedFlow = (tunnel: UserTunnel): number => {
   const inFlow = tunnel.inFlow || 0;
   const outFlow = tunnel.outFlow || 0;
   
-  if (tunnel.tunnelFlow === 1) {
-    return outFlow; // 单向计算：只计算上传流量
-  } else {
-    return inFlow + outFlow; // 双向计算或默认：计算上传和下载的总流量
-  }
+  // 后端已按计费类型处理流量，前端直接使用入站+出站总和
+  return inFlow + outFlow;
 };
 
 export default function UserPage() {

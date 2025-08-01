@@ -369,19 +369,10 @@ func (s *defaultService) observeStats(ctx context.Context) {
 					},
 				}
 				if outputBytes > 0 || inputBytes > 0 {
-					reportItems := []TrafficReportItem{
-						{
-							N: s.name,
-							T: "cc",
-							U: int64(outputBytes),
-							D: int64(inputBytes),
-						},
-						{
-							N: s.name,
-							T: "conn",
-							U: int64(inputBytes),
-							D: int64(outputBytes),
-						},
+					reportItems := TrafficReportItem{
+						N: s.name,
+						U: int64(outputBytes),
+						D: int64(inputBytes),
 					}
 					success, err := sendTrafficReport(ctx, reportItems)
 					if err != nil {

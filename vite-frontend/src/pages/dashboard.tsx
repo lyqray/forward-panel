@@ -258,6 +258,7 @@ export default function DashboardPage() {
   };
 
   const calculateUserTotalUsedFlow = (): number => {
+    // 后端已按计费类型处理流量，前端直接使用入站+出站总和
     return (userInfo.inFlow || 0) + (userInfo.outFlow || 0);
   };
 
@@ -313,11 +314,8 @@ export default function DashboardPage() {
     if (!tunnel) return 0;
     const inFlow = tunnel.inFlow || 0;
     const outFlow = tunnel.outFlow || 0;
-    if (tunnel.tunnelFlow === 1) {
-      return outFlow;
-    } else {
-      return inFlow + outFlow;
-    }
+    // 后端已按计费类型处理流量，前端直接使用入站+出站总和
+    return inFlow + outFlow;
   };
 
   const calculateTunnelFlowPercentage = (tunnel: UserTunnel): number => {
@@ -523,19 +521,11 @@ export default function DashboardPage() {
   const calculateForwardBillingFlow = (forward: Forward): number => {
     if (!forward) return 0;
     
-    const tunnel = userTunnels.find(t => t.tunnelId === forward.tunnelId);
-    if (!tunnel) {
-      return (forward.inFlow || 0) + (forward.outFlow || 0);
-    }
-    
     const inFlow = forward.inFlow || 0;
     const outFlow = forward.outFlow || 0;
     
-    if (tunnel.tunnelFlow === 1) {
-      return outFlow;
-    } else {
-      return inFlow + outFlow;
-    }
+    // 后端已按计费类型处理流量，前端直接使用入站+出站总和
+    return inFlow + outFlow;
   };
 
       if (loading) {
@@ -675,7 +665,7 @@ export default function DashboardPage() {
                      <div key={tunnel.id} className="border border-gray-200 dark:border-default-100 rounded-lg p-3 lg:p-4 hover:shadow-md transition-shadow">
                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
                          <div>
-                           <h3 className="font-semibold text-foreground">{tunnel.tunnelName}</h3>
+                           <h3 className="font-semibold text-foreground">{tunnel.tunnelName} ID: {tunnel.id}</h3>
                            <div className="flex flex-wrap items-center gap-2 mt-1">
                              <span className={`px-2 py-1 rounded-md text-xs font-medium ${tunnel.tunnelFlow === 1 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300'}`}>
                                {tunnel.tunnelFlow === 1 ? '单向计费' : '双向计费'}

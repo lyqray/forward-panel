@@ -4,7 +4,7 @@ export type SiteConfig = typeof siteConfig;
 
 // 缓存相关常量
 const CACHE_PREFIX = 'vite_config_';
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 
 // 缓存策略：
 // - 长期有效，不设置过期时间
